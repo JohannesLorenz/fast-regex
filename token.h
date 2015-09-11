@@ -216,26 +216,13 @@ public:
 };
 
 // do not produce debug<Nothing> (this would let classes that assume "Nothing" fail
+// also, debug output for Nothing should be avoided
 template<class T> struct mk_debug {
 	typedef debug<T> type;
 };
 template<> struct mk_debug<Nothing> {
 	typedef Nothing type;
 };
-
-
-/*
-template<template<class, class, class, class, class, class, class, class> class T>
-class debug<T<Nothing, Nothing, Nothing, Nothing, Nothing, Nothing, Nothing, Nothing> > : regex_base
-{
-	typedef T<Nothing, Nothing, Nothing, Nothing, Nothing, Nothing, Nothing, Nothing> child_t;
-	static bool match(iterator& i) {
-		// don't print, it's pointless here...
-		// btw: we still don't know the return value of child_t...
-		std::cerr << "... " << std::endl;
-		return child_t::match(i);
-	}
-};*/
 
 template<class C> struct incr_if {
 	typedef std::string::const_iterator iterator;
@@ -266,12 +253,7 @@ template<class C1>
 struct incr_if<debug<C1> > {
 	typedef std::string::const_iterator iterator;
 	static iterator& exec(iterator& i) { return incr_if<typename debug<C1>::child_t>::exec(i); }
-};/*
-template<class C1, C2, C3, C4, C5, C6, C7, C8>
-struct incr_if<debug<C1, C2, C3, C4, C5, C6>> {
-	typedef std::string::const_iterator iterator;
-	static iterator& exec(iterator& i) { return incr_if<debug<C1>::child_t>::exec(i); }
-};*/
+};
 
 /*template<class C1, class C2=Nothing, class C3=Nothing, class C4=Nothing,
 	class C5 = Nothing, class C6=Nothing, class C7=Nothing,
