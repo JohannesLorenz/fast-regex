@@ -1,7 +1,13 @@
-all: cparser
+CXX=clang++
+FLAGS=-g -ggdb -O0
+all: libcparser.so main
 %.o: %.cpp
-	g++ -Wall -pipe -fPIC *.cpp -c $<
-cparser: token.o
-	g++ -Wall -pipe -shared *.o -o cparser
+	${CXX} ${FLAGS} -Wall -pipe -fPIC -c $<
+libcparser.so: token.o
+	${CXX} ${FLAGS} -Wall -pipe -shared *.o -o libcparser.so
 clean:
-	rm cparser
+	rm -f cparser && rm -f *.o
+main: main.o token.o
+	${CXX} ${FLAGS} main.o token.o -o main
+rebuild: clean all
+

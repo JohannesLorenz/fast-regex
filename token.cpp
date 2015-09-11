@@ -1,18 +1,27 @@
+#include <algorithm>
+#include <iostream>
 #include "token.h"
 
-token_t::token_t()
+/*token_t::token_t()
 {
+}*/
+
+std::ostream& token_t::dump(std::ostream& stream, const std::string& file) {
+	std::string substr;
+	std::copy(_begin, _end, std::back_inserter(substr));
+	return stream << substr << *this;
+	//return stream << file.substr(begin, end) << *this;
 }
 
-
-#define K_TOKEN(x) tokens["x"] = k_##x
+//#define K_TOKEN(x) add("x", k_##x
+#define K_TOKEN(x) add(#x, k_##x);
 
 void token_map::init_tokens()
 {
-	//tokens[identifier] = "<identifier>";
-	//tokens[k_auto] = "auto";
-	//tokens[k_break] = "break";
-	//tokens[k_case] =
+	//add(identifier, "<identifier>";
+	//add(k_auto, "auto";
+	//add(k_break, "break";
+	//add(k_case,
 	K_TOKEN(auto);
 	K_TOKEN(break);
 	K_TOKEN(case);
@@ -45,22 +54,24 @@ void token_map::init_tokens()
 	K_TOKEN(void);
 	K_TOKEN(volatile);
 	K_TOKEN(while);
+	
+	add("...", ellipsis);
+	add(">>=", right_assign);
+	add("<<=", left_assign);
+	add("+=", add_assign);
+	add("-=", sub_assign);
+	add("*=", mul_assign);
+	add("/=", div_assign);
+	add("%=", mod_assign);
+	add("&=", and_assign);
+	add("^=", xor_assign);
+	add("|=", or_assign);
+	add(">>", right_op);
+	add("<<", left_op);
+	add("++", inc_op);
 
-	tokens["..."] = ellipsis;
-	tokens[">>="] = right_assign;
-	tokens["<<="] = left_assign;
-	tokens["+="] = add_assign;
-	tokens["-="] = sub_assign;
-	tokens["*="] = mul_assign;
-	tokens["/="] = div_assign;
-	tokens["%="] = mod_assign;
-	tokens["&="] = and_assign;
-	tokens["^="] = xor_assign;
-	tokens["|="] = or_assign;
-	tokens[">>"] = right_op;
-	tokens["<<"] = left_op;
-	tokens["++"] = inc_op;
-
+	add(" ", k_do); // TODO!!
+	//tokens.push_back(new hex_const());
 }
 
 #undef K_TOKEN
@@ -69,3 +80,22 @@ token_map::token_map()
 {
 	init_tokens();
 }
+
+cfile::cfile(const std::string& content)
+{
+	std::string::const_iterator itr = content.begin();
+	token_t cur_token = token_reader::invalid(itr);
+	if(itr != content.end())
+	do
+	{
+		cur_token = map.apply(content, itr);
+		_tokens.push_back(cur_token);
+		std::cerr << cur_token.dump(std::cerr, content);
+		std::cerr << std::endl;
+	}
+	while(itr != content.end() && cur_token);
+
+	if(! cur_token)
+	 throw std::string("invalid token found: ") + &*itr;
+}
+
