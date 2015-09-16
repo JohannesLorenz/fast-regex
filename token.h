@@ -21,9 +21,15 @@ enum token_type
 	k_struct, k_union, k_enum, ellipsis,
 
 	k_case, k_default, k_if, k_else, k_switch, k_while, k_do, k_for, k_goto, k_continue, k_break, k_return,
+
+	// "simple signs":
+	semicolon, lbrace,
+	rbrace, comma, colon, eq_sgn, lpar, rpar, lbrack, rbrack,
+	point, and_sgn, excl_mark, tilde, minus, plus, star, slash,
+	percent, langle, rangle, circ, pipe, qu_mark, whitespace,
+
 	none
 };
-
 
 class token_t
 {
@@ -377,7 +383,7 @@ struct choices : public parser,
 	// TODO: copy itr
 	static bool match(iterator& i, iterator tmp = iterator()) {
 		return (tmp=i, C1::match(i)) || (i = tmp, choices<C2, C3, C4, C5, C6, C7, C8,
-			Nothing>::match(tmp));
+			Nothing>::match(i));
 	}
 };
 
@@ -465,6 +471,7 @@ struct kleenee : public equal_base<C>, public parser
 {
 	typedef kleenee<C> real_t;
 	static bool match(iterator& i) {
+		std::cerr << "at: " << (*i) << std::endl;
 		return C::match(i) && match(incr_if<C>::exec(i)), true; // TODO: true: a bit inefficient?
 	}
 };
@@ -562,7 +569,17 @@ class r_string_literal : public
 
 template<token_type Token, char C1, char C2 = 0, char C3 = 0, char C4 = 0,
 	char C5 = 0, char C6 = 0, char C7 = 0, char C8 = 0>
-class tok_str : public str<C1, C2, C3, C4, C5, C6, C7, C8> {};
+class tok_str : public str<C1, C2, C3, C4, C5, C6, C7, C8> {}; // TODO: reuse tok_regex?
+
+template<token_type Token, class C1, class C2 = Nothing,
+	class C3 = Nothing, class C4 = Nothing,
+	class C5 = Nothing, class C6 = Nothing,
+	class C7 = Nothing, class C8 = Nothing>
+class tok_regex : public regex<C1, C2, C3, C4, C5, C6, C7, C8> {};
+
+/*template<token_type Token, char C1, char C2 = 0, char C3 = 0, char C4 = 0,
+	char C5 = 0, char C6 = 0, char C7 = 0, char C8 = 0>
+class tok_str : public str<C1, C2, C3, C4, C5, C6, C7, C8> {};*/
 
 class c_keywords_1 : public
 	choices <
@@ -613,18 +630,7 @@ class c_keywords_4 : public
 		tok_str<k_while, 'w', 'h', 'i', 'l', 'e'>
 	> {};
 
-class c_other : public
-	choices<
-		tok_str<ellipsis, '.', '.', '.'>,
-		tok_str<right_assign, '>', '>', '='>,
-		tok_str<left_assign, '<', '<', '"'>,
-		tok_str<add_assign, '+', '='>,
-		tok_str<sub_assign, '-', '='>,
-		tok_str<mul_assign, '*', '='>,
-		tok_str<div_assign, '/', '='>
-	> {};
-
-class c_file_poss : public
+class c_keywords : public
 	choices<
 		c_keywords_1,
 		c_keywords_2,
@@ -632,73 +638,108 @@ class c_file_poss : public
 		c_keywords_4
 	> {};
 
+class c_constants : public
+	choices<
+		tok_regex<identifier, r_identifier>,
+		tok_regex<constant, choices<
+			hex_const,
+			r_oct_const,
+			r_dec_const,
+			r_char_const,
+			r_float_const,
+			r_float_const_2,
+			r_float_const_3>
+			>,
+		tok_regex<string_literal, r_string_literal>
+	> {};
 
+class c_other_1 : public
+	choices<
+		tok_str<ellipsis, '.', '.', '.'>,
+		tok_str<right_assign, '>', '>', '='>,
+		tok_str<left_assign, '<', '<', '"'>,
+		tok_str<add_assign, '+', '='>,
+		tok_str<sub_assign, '-', '='>,
+		tok_str<mul_assign, '*', '='>,
+		tok_str<div_assign, '/', '='>,
+		tok_str<mod_assign, '%', '='>
+	> {};
 
-#if 0
+class c_other_2 : public
+	choices<
+		tok_str<and_assign, '&', '='>,
+		tok_str<xor_assign, '^', '='>,
+		tok_str<or_assign, '|', '='>,
+		tok_str<right_op, '>', '>'>,
+		tok_str<left_op, '<', '<'>,
+		tok_str<inc_op, '+', '+'>,
+		tok_str<dec_op, '-', '-'>,
+		tok_str<ptr_op, '-', '>'>
+	> {};
 
-{L}({L}|{D})*		{ count(); return(check_type()); }
+class c_other_3 : public
+	choices<
+		tok_str<and_op, '&', '&'>,
+		tok_str<or_op, '|', '|'>,
+		tok_str<le_op, '<', '='>,
+		tok_str<ge_op, '>', '='>,
+		tok_str<eq_op, '=', '='>,
+		tok_str<ne_op, '!', '='>,
+		tok_str<semicolon, ';'>,
+		tok_regex<lbrace, choices< raw<'{'> , str<'<', '%'> > >
+	> {};
 
-0[xX]{H}+{IS}?		{ count(); return(CONSTANT); }
-0{D}+{IS}?		{ count(); return(CONSTANT); }
-{D}+{IS}?		{ count(); return(CONSTANT); }
-L?'(\\.|[^\\'])+'	{ count(); return(CONSTANT); }
+class c_other_4 : public
+	choices<
+		tok_regex<rbrace, choices< raw<'}'> , str<'%', '>'> > >,
+		tok_str<comma, ','>,
+		tok_str<colon, ':'>,
+		tok_str<eq_sgn, '='>,
+		tok_str<lpar, '('>,
+		tok_str<rpar, ')'>,
+		tok_regex<lbrack, choices< raw<'['> , str<'<', ':'> > >,
+		tok_regex<rbrack, choices< raw<']'> , str<':', '>'> > >
+	> {};
 
-{D}+{E}{FS}?		{ count(); return(CONSTANT); }
-{D}*"."{D}+({E})?{FS}?	{ count(); return(CONSTANT); }
-{D}+"."{D}*({E})?{FS}?	{ count(); return(CONSTANT); }
+class c_other_5 : public
+	choices<
+		tok_str<point, '.'>,
+		tok_str<and_sgn, '&'>,
+		tok_str<excl_mark, '!'>,
+		tok_str<tilde, '~'>,
+		tok_str<minus, '-'>,
+		tok_str<plus, '+'>,
+		tok_str<star, '*'>,
+		tok_str<slash, '/'>
+	> {};
 
-L?\"(\\.|[^\\"])*\"	{ count(); return(STRING_LITERAL); }
+class c_other_6 : public
+	choices<
+		tok_str<percent, '%'>,
+		tok_str<langle, '<'>,
+		tok_str<rangle, '>'>,
+		tok_str<circ, '^'>,
+		tok_str<pipe, '|'>,
+		tok_str<qu_mark, '?'>,
+		tok_regex<whitespace, one_of<' ', '\t', '\v', '\n', '\f'> >
+	> {};
 
-"..."			{ count(); return(ELLIPSIS); }
-">>="			{ count(); return(RIGHT_ASSIGN); }
-"<<="			{ count(); return(LEFT_ASSIGN); }
-"+="			{ count(); return(ADD_ASSIGN); }
-"-="			{ count(); return(SUB_ASSIGN); }
-"*="			{ count(); return(MUL_ASSIGN); }
-"/="			{ count(); return(DIV_ASSIGN); }
-"%="			{ count(); return(MOD_ASSIGN); }
-"&="			{ count(); return(AND_ASSIGN); }
-"^="			{ count(); return(XOR_ASSIGN); }
-"|="			{ count(); return(OR_ASSIGN); }
-">>"			{ count(); return(RIGHT_OP); }
-"<<"			{ count(); return(LEFT_OP); }
-"++"			{ count(); return(INC_OP); }
-"--"			{ count(); return(DEC_OP); }
-"->"			{ count(); return(PTR_OP); }
-"&&"			{ count(); return(AND_OP); }
-"||"			{ count(); return(OR_OP); }
-"<="			{ count(); return(LE_OP); }
-">="			{ count(); return(GE_OP); }
-"=="			{ count(); return(EQ_OP); }
-"!="			{ count(); return(NE_OP); }
-";"			{ count(); return(';'); }
-("{"|"<%")		{ count(); return('{'); }
-("}"|"%>")		{ count(); return('}'); }
-","			{ count(); return(','); }
-":"			{ count(); return(':'); }
-"="			{ count(); return('='); }
-"("			{ count(); return('('); }
-")"			{ count(); return(')'); }
-("["|"<:")		{ count(); return('['); }
-("]"|":>")		{ count(); return(']'); }
-"."			{ count(); return('.'); }
-"&"			{ count(); return('&'); }
-"!"			{ count(); return('!'); }
-"~"			{ count(); return('~'); }
-"-"			{ count(); return('-'); }
-"+"			{ count(); return('+'); }
-"*"			{ count(); return('*'); }
-"/"			{ count(); return('/'); }
-"%"			{ count(); return('%'); }
-"<"			{ count(); return('<'); }
-">"			{ count(); return('>'); }
-"^"			{ count(); return('^'); }
-"|"			{ count(); return('|'); }
-"?"			{ count(); return('?'); }
+class c_other : public
+	choices<
+		c_other_1,
+		c_other_2,
+		c_other_3,
+		c_other_4,
+		c_other_5,
+		c_other_6
+	> {};
 
-[ \t\v\n\f]		{ count(); }
-.
-#endif
+class c_file_poss : public
+	choices<
+		c_keywords,
+		c_constants,
+		c_other
+	> {};
 
 class c_file : public kleenee< c_file_poss > {};
 
@@ -748,8 +789,8 @@ inline void test_regex()
 	assert_match<r_float_const_2>(".52e+f");
 	assert_match<r_float_const_2>(".52f");
 
-	assert_match<c_file>("autoabreak");
-};
+	assert_match<c_file>("int main() { return 0; }");
+}
 
 class token_map
 {
@@ -785,102 +826,4 @@ public:
 
 #endif // TOKEN_H
 
-#if 0
-"auto"			{ count(); return(AUTO); }
-"break"			{ count(); return(BREAK); }
-"case"			{ count(); return(CASE); }
-"char"			{ count(); return(CHAR); }
-"const"			{ count(); return(CONST); }
-"continue"		{ count(); return(CONTINUE); }
-"default"		{ count(); return(DEFAULT); }
-"do"			{ count(); return(DO); }
-"double"		{ count(); return(DOUBLE); }
-"else"			{ count(); return(ELSE); }
-"enum"			{ count(); return(ENUM); }
-"extern"		{ count(); return(EXTERN); }
-"float"			{ count(); return(FLOAT); }
-"for"			{ count(); return(FOR); }
-"goto"			{ count(); return(GOTO); }
-"if"			{ count(); return(IF); }
-"int"			{ count(); return(INT); }
-"long"			{ count(); return(LONG); }
-"register"		{ count(); return(REGISTER); }
-"return"		{ count(); return(RETURN); }
-"short"			{ count(); return(SHORT); }
-"signed"		{ count(); return(SIGNED); }
-"sizeof"		{ count(); return(SIZEOF); }
-"static"		{ count(); return(STATIC); }
-"struct"		{ count(); return(STRUCT); }
-"switch"		{ count(); return(SWITCH); }
-"typedef"		{ count(); return(TYPEDEF); }
-"union"			{ count(); return(UNION); }
-"unsigned"		{ count(); return(UNSIGNED); }
-"void"			{ count(); return(VOID); }
-"volatile"		{ count(); return(VOLATILE); }
-"while"			{ count(); return(WHILE); }
-
-{L}({L}|{D})*		{ count(); return(check_type()); }
-
-0[xX]{H}+{IS}?		{ count(); return(CONSTANT); }
-0{D}+{IS}?		{ count(); return(CONSTANT); }
-{D}+{IS}?		{ count(); return(CONSTANT); }
-L?'(\\.|[^\\'])+'	{ count(); return(CONSTANT); }
-
-{D}+{E}{FS}?		{ count(); return(CONSTANT); }
-{D}*"."{D}+({E})?{FS}?	{ count(); return(CONSTANT); }
-{D}+"."{D}*({E})?{FS}?	{ count(); return(CONSTANT); }
-
-L?\"(\\.|[^\\"])*\"	{ count(); return(STRING_LITERAL); }
-
-"..."			{ count(); return(ELLIPSIS); }
-">>="			{ count(); return(RIGHT_ASSIGN); }
-"<<="			{ count(); return(LEFT_ASSIGN); }
-"+="			{ count(); return(ADD_ASSIGN); }
-"-="			{ count(); return(SUB_ASSIGN); }
-"*="			{ count(); return(MUL_ASSIGN); }
-"/="			{ count(); return(DIV_ASSIGN); }
-"%="			{ count(); return(MOD_ASSIGN); }
-"&="			{ count(); return(AND_ASSIGN); }
-"^="			{ count(); return(XOR_ASSIGN); }
-"|="			{ count(); return(OR_ASSIGN); }
-">>"			{ count(); return(RIGHT_OP); }
-"<<"			{ count(); return(LEFT_OP); }
-"++"			{ count(); return(INC_OP); }
-"--"			{ count(); return(DEC_OP); }
-"->"			{ count(); return(PTR_OP); }
-"&&"			{ count(); return(AND_OP); }
-"||"			{ count(); return(OR_OP); }
-"<="			{ count(); return(LE_OP); }
-">="			{ count(); return(GE_OP); }
-"=="			{ count(); return(EQ_OP); }
-"!="			{ count(); return(NE_OP); }
-";"			{ count(); return(';'); }
-("{"|"<%")		{ count(); return('{'); }
-("}"|"%>")		{ count(); return('}'); }
-","			{ count(); return(','); }
-":"			{ count(); return(':'); }
-"="			{ count(); return('='); }
-"("			{ count(); return('('); }
-")"			{ count(); return(')'); }
-("["|"<:")		{ count(); return('['); }
-("]"|":>")		{ count(); return(']'); }
-"."			{ count(); return('.'); }
-"&"			{ count(); return('&'); }
-"!"			{ count(); return('!'); }
-"~"			{ count(); return('~'); }
-"-"			{ count(); return('-'); }
-"+"			{ count(); return('+'); }
-"*"			{ count(); return('*'); }
-"/"			{ count(); return('/'); }
-"%"			{ count(); return('%'); }
-"<"			{ count(); return('<'); }
-">"			{ count(); return('>'); }
-"^"			{ count(); return('^'); }
-"|"			{ count(); return('|'); }
-"?"			{ count(); return('?'); }
-
-[ \t\v\n\f]		{ count(); }
-.			{ /* ignore bad characters */ }
-
-#endif
 
