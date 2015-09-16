@@ -14,7 +14,7 @@ int main()
 	{
 		test_regex();
 
-		std::string s;
+/*		std::string s;
 		std::stringstream buffer;
 		buffer << std::cin.rdbuf();
 		s = buffer.str();
@@ -22,7 +22,7 @@ int main()
 		//, tmp;
 		//while(std::cin >> tmp) s+=tmp;
 		std::cerr << "input: " << s << std::endl;
-		cfile cf(s);
+		cfile cf(s);*/
 	} catch (std::string msg) {
 		print_err(msg.c_str());
 	} catch (const char* msg) {

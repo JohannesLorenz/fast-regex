@@ -101,7 +101,6 @@ public:
 template<class R>
 class token_reader_r : public token_reader_base
 {
-private:
 	virtual bool match(iterator& i) const {
 		return R::match(i);
 	}
@@ -110,120 +109,157 @@ public:
 		token_reader_base(type) {}
 };
 
-typedef bool (*char_fptr)(char);
-
-#if 0
-// NOT TESTED YET!
-//! @param c must not be 0
-//! @param choices must be 0 terminated
-inline bool one_of(char c, const char* choices)
+template<class T>
+class bool_base
 {
-	for(; *choices && (*choices != c); ++choices) ;
-	return (bool)*choices;
-}
-#endif
+	typedef bool_base<T> self_t;
+public:
+	T elem;
+	bool val;
+	self_t operator&&(self_t& rhs) {
+		self_t res;
+		return (res.elem = elem && rhs.elem, res.val = val && rhs.val, res);
+	}
+	self_t operator||(self_t& rhs) {
+		self_t res;
+		return (res.elem = elem || rhs.elem, res.val = val || rhs.val, res);
+	}
+};
 
-template<char C>
-inline bool is_not(char c) { return c != C; }
-
-inline bool cletter1(char c) {
-	return c == '_' || (bool)isalpha(c);
-}
-
-inline bool cletter(char c) {
-	return c == '_' || (bool)isalnum(c);
-}
-
-#if 0
-// NOT TESTED YET!
-inline bool once_or_not(std::string::const_iterator& i, char_fptr fptr) {
-	return fptr(*i) && ++i, true;
-}
-#endif
-
-class regex_base // TODO: parse_base?
+class parser // TODO: parse_base?
 {
 protected:
 	typedef std::string::const_iterator iterator;
+public:
+	typedef bool result;
 };
 
 template<char C>
-class raw : regex_base {
-public:
+struct raw : public parser {
+	typedef raw<C> real_t;
 	static bool match(iterator& i) { return *i == C; }
 };
 
 //! represents that nothing more is to be parsed.
-class Nothing : regex_base {
-public:
+struct Nothing : public parser {
 	static bool match(iterator& i) { throw "can not match class \"Nothing\""; }
 };
 
 template<class C> struct kleenee;
 template<class C> struct kleenee_p;
 template<class C> struct maybe;
-template<class C1, class C2=Nothing, class C3=Nothing, class C4=Nothing,
-	class C5 = Nothing, class C6=Nothing, class C7=Nothing,
-	class C8 = Nothing>
-class regex;
+template<class C1=Nothing, class C2=Nothing, class C3=Nothing, class C4=Nothing,
+	class C5=Nothing , class C6=Nothing, class C7=Nothing,
+	class C8=Nothing>
+struct regex;
+template<char C1, char C2, char C3=0, char C4=0, char C5=0, char C6=0,
+	char C7=0, char C8=0>
+class str; 
+template<class C1=Nothing, class C2=Nothing, class C3=Nothing, class C4=Nothing,
+	class C5=Nothing, class C6=Nothing, class C7=Nothing,
+	class C8=Nothing>
+struct choices;
 
-template<class T> struct mk_debug;
-template<> struct mk_debug<Nothing>;
+template<class A, class T> struct mk_action;
+template<class A> struct mk_action<A, Nothing>;
 
-template<class Terminal> class debug : regex_base {
+//! action template for terminals
+template<class A, class Terminal> class action : public parser {
 public:
 	typedef Terminal child_t;
 	static bool match(iterator& i) {
-		std::cerr << "trying to match terminal:" << std::endl << typeid(Terminal).name() << std::endl;
+		/*std::cerr << "trying to match terminal:" << std::endl << typeid(Terminal).name() << std::endl;
 		bool res = Terminal::match(i);
 		if(res)
 			std::cerr << " -> success (terminal)!" << std::endl;
-		return res;
-
+		return res;*/
+		return Terminal::match(i);
 	}
 };
-template<template<class > class T, class C1>
-class debug<T<C1> > : regex_base {
+
+template<class A> class action_nt_base : public parser
+{
+protected:
+	template<class Child>
+	static bool match_base(iterator& i, typename A::result tmp = typename A::result(), Child* ct = NULL)
+	{
+		// if the child matched, "collect" it, then reach it up
+		// to the next level
+		return tmp = Child::match(i) && (A::template collect(tmp, ct), true);
+	}
+};
+
+//! action template for classes with one templ-templ-param
+template<class A, template<class > class T, class C1>
+class action<A, T<C1> > : public action_nt_base<A> {
 public:
-	typedef T< typename  mk_debug<C1>::type > child_t;
-	static bool match(iterator& i) {
-		std::cerr << "trying to match:" << std::endl << typeid(T<C1>).name() << std::endl;
+	typedef T< typename  mk_action<A, C1>::type > child_t;
+	typedef action_nt_base<A> base_t;
+	static bool match(typename base_t::iterator& i) {
+	/*	std::cerr << "trying to match:" << std::endl << typeid(T<C1>).name() << std::endl;
 		bool res = child_t::match(i);
 		if(res)
 			std::cerr << " -> success!" << std::endl;
-		return res;
-
+		return res; */
+		return base_t::template match_base<child_t>(i);
 	}
 };
 
-template<template<class, class, class, class, class, class, class, class > class T,
+//! action template for classes with 8 templ-templ-param
+template<class A,
+	template<class, class, class, class, class, class, class, class > class T,
 	class C1, class C2, class C3, class C4, class C5, class C6, class C7, class C8>
-class debug<T<C1, C2, C3, C4, C5, C6, C7, C8> > : regex_base {
+class action<A, T<C1, C2, C3, C4, C5, C6, C7, C8> > : public action_nt_base<A> {
 public:
-	typedef T< typename mk_debug<C1>::type, typename mk_debug<C2>::type,
-		typename mk_debug<C3>::type, typename mk_debug<C4>::type,
-		typename mk_debug<C5>::type, typename mk_debug<C6>::type,
-		typename mk_debug<C7>::type, typename mk_debug<C8>::type
-		>child_t;
-	static bool match(iterator& i) {
+	typedef T< typename mk_action<A, C1>::type,
+		typename mk_action<A, C2>::type,
+		typename mk_action<A, C3>::type,
+		typename mk_action<A, C4>::type,
+		typename mk_action<A, C5>::type,
+		typename mk_action<A, C6>::type,
+		typename mk_action<A, C7>::type,
+		typename mk_action<A, C8>::type
+		> child_t;
+	typedef action_nt_base<A> base_t;
+	static bool match(typename base_t::iterator& i) {
 		// TODO: do not print "Nothing"s?
-		std::cerr << "trying to match:" << std::endl << typeid(T<C1, C2, C3, C4, C5, C6, C7, C8>).name() << std::endl;
+	/*	std::cerr << "trying to match:" << std::endl << typeid(T<C1, C2, C3, C4, C5, C6, C7, C8>).name() << std::endl;
 		bool res = child_t::match(i);
 		if(res)
 			std::cerr << " -> success!" << std::endl;
-		return res;
+		return res;*/
+		return base_t::template match_base<child_t>(i);
 	}
 };
 
-// do not produce debug<Nothing> (this would let classes that assume "Nothing" fail
-// also, debug output for Nothing should be avoided
-template<class T> struct mk_debug {
-	typedef debug<T> type;
+#if 0
+//! action template for classes with one templ-templ-param
+template<class A, template<class > class T, class C1>
+class mk_action_2 {
 };
-template<> struct mk_debug<Nothing> {
+
+//! action template for classes with 8 templ-templ-param
+template<class A,
+	template<class, class, class, class, class, class, class, class > class T,
+	class C1, class C2, class C3, class C4, class C5, class C6, class C7, class C8>
+class action<A, T<C1, C2, C3, C4, C5, C6, C7, C8> > : public action_nt_base<A> {
+p
+#endif
+
+// do not produce action<Nothing> (this would let classes that assume "Nothing" fail
+// also, action output for Nothing should be avoided
+template<class A, class T> struct mk_action {
+	typedef action<A, typename T::real_t> type;
+//	typedef mk_action_2<A, T>::type type;	
+};
+template<class A> struct mk_action<A, Nothing> {
 	typedef Nothing type;
 };
 
+// on match, some regexp parsers may stop at the last sign and thus must be
+// increased (e.g. simple checks like isalnum()). others, however, may stop
+// behind the last matched char (e.g. while loops). @a incr_if increments the
+// pointer when necessary
 template<class C> struct incr_if {
 	typedef std::string::const_iterator iterator;
 	static iterator& exec(iterator& i) { return ++i; }
@@ -249,32 +285,54 @@ template<class C1, class C2, class C3, class C4, class C5, class C6,
 	typedef std::string::const_iterator iterator;
 	static iterator& exec(iterator& i) { return i; }
 };
-template<class C1>
-struct incr_if<debug<C1> > {
+template<class A, class C1>
+struct incr_if<action<A, C1> > {
 	typedef std::string::const_iterator iterator;
-	static iterator& exec(iterator& i) { return incr_if<typename debug<C1>::child_t>::exec(i); }
+	static iterator& exec(iterator& i) { return incr_if<typename action<A, C1>::child_t>::exec(i); }
 };
 
-/*template<class C1, class C2=Nothing, class C3=Nothing, class C4=Nothing,
-	class C5 = Nothing, class C6=Nothing, class C7=Nothing,
-	class C8 = Nothing>*/
+template<char C1, char C2, char C3, char C4, char C5, char C6, char C7, char C8>
+struct incr_if<str<C1, C2, C3, C4, C5, C6, C7, C8> >
+{
+	typedef std::string::const_iterator iterator;
+	static iterator& exec(iterator& i) { return ++i; }
+};
+template<class C1, class C2, class C3, class C4,
+	class C5 , class C6, class C7,
+	class C8 >
+struct incr_if<choices<C1, C2, C3, C4, C5, C6, C7, C8> > { 
+	typedef std::string::const_iterator iterator;
+	static iterator& exec(iterator& i) { return i; }
+};
+
+template<class C1=Nothing, class C2=Nothing, class C3=Nothing, class C4=Nothing,
+	class C5=Nothing, class C6=Nothing, class C7=Nothing, class C8=Nothing>
+struct multiple_base
+{
+};
+
+template<class C>
+struct equal_base : multiple_base<C> {};
+
+/*template<class C1, class C2, class C3=Nothing, class C4=Nothing,
+	class C5 , class C6=Nothing, class C7=Nothing,
+	class C8 >*/
 template<class C1, class C2, class C3, class C4,
 	class C5, class C6, class C7,
 	class C8>
-class regex : regex_base
+struct regex : public multiple_base<C1, C2, C3, C4, C5, C6, C7, C8>, parser
 {
-public:
-	static bool match(iterator& i) {
+	typedef regex<C1, C2, C3, C4, C5, C6, C7, C8> real_t;
+	static typename C1::result match(iterator& i) {
 		return C1::match(i) && regex<C2, C3, C4, C5, C6, C7, C8,
 			Nothing>::match(incr_if<C1>::exec(i));
 	}
 };
 
 template<>
-class regex<Nothing, Nothing, Nothing, Nothing, Nothing, Nothing,
-	Nothing, Nothing> : regex_base
+struct regex<Nothing, Nothing, Nothing, Nothing, Nothing, Nothing,
+	Nothing, Nothing> : public parser
 {
-public:
 	static bool match(const iterator& ) {
 		return true;
 	}
@@ -283,40 +341,50 @@ public:
 template<char C> struct to_raw { typedef raw<C> type; };
 template<> struct to_raw<0> { typedef Nothing type; };
 
-template<char C1, char C2, char C3=0, char C4=0, char C5=0, char C6=0,
-	char C7=0, char C8=0>
-class str : regex_base
+template<char C1, char C2, char C3, char C4, char C5, char C6,
+	char C7, char C8>
+class str : public parser
 {
 	typedef regex<
-		to_raw<C1>, to_raw<C2>,
-		to_raw<C3>, to_raw<C4>,
-		to_raw<C5>, to_raw<C6>,
-		to_raw<C7>, to_raw<C8>
+		typename to_raw<C1>::type, typename to_raw<C2>::type,
+		typename to_raw<C3>::type, typename to_raw<C4>::type,
+		typename to_raw<C5>::type, typename to_raw<C6>::type,
+		typename to_raw<C7>::type, typename to_raw<C8>::type
 	>
 	base;
 public:
-	static bool match(const iterator& i) {
+	typedef str<C1, C2, C3, C4, C5, C6, C7, C8> real_t;
+	//typedef base real_t;
+	static bool match(iterator& i) {
 		return base::match(i);
 	}
 };
 
-template<class C1, class C2=Nothing, class C3=Nothing, class C4=Nothing,
-	class C5 = Nothing, class C6=Nothing, class C7=Nothing,
-	class C8 = Nothing>
-class choices : regex_base
+template<class C1=Nothing, class C2=Nothing, class C3=Nothing, class C4=Nothing,
+	class C5=Nothing , class C6=Nothing, class C7=Nothing,
+	class C8=Nothing >
+struct choices_base
 {
-public: // TODO: copy itr
-	static bool match(iterator& i) {
-		return C1::match(i) || choices<C2, C3, C4, C5, C6, C7, C8,
-			Nothing>::match(i);
+};
+
+template<class C1, class C2, class C3, class C4,
+	class C5 , class C6, class C7,
+	class C8 >
+struct choices : public parser,
+	public choices_base<C1, C2, C3, C4, C5, C6, C7, C8> 
+{
+	typedef choices<C1, C2, C3, C4, C5, C6, C7, C8> real_t;
+	// TODO: copy itr
+	static bool match(iterator& i, iterator tmp = iterator()) {
+		return (tmp=i, C1::match(i)) || (i = tmp, choices<C2, C3, C4, C5, C6, C7, C8,
+			Nothing>::match(tmp));
 	}
 };
 
 template<>
-class choices<Nothing, Nothing, Nothing, Nothing, Nothing, Nothing,
-	Nothing, Nothing> : regex_base
+struct choices<Nothing, Nothing, Nothing, Nothing, Nothing, Nothing,
+	Nothing, Nothing> : public parser
 {
-public:
 	static bool match(const iterator& ) {
 		return false;
 	}
@@ -324,9 +392,10 @@ public:
 
 template<char C1, char C2=0, char C3=0, char C4=0, char C5=0, char C6=0,
 	char C7=0, char C8=0>
-class one_of : regex_base
+struct one_of : public parser, public choices_base<raw<C1>, raw<C2>, raw<C3>, raw<C4>,
+	raw<C5>, raw<C6>, raw<C7>, raw<C8> > 
 {
-public:
+	typedef one_of<C1, C2, C3, C4, C5, C6, C7, C8> real_t;
 	static bool match(iterator& i) {
 		return raw<C1>::match(i) || one_of<C2, C3, C4, C5, C6, C7, C8,
 			0>::match(i);
@@ -334,99 +403,89 @@ public:
 };
 
 template<>
-class one_of<0,0,0,0,0,0,0,0> : regex_base
+struct one_of<0,0,0,0,0,0,0,0> : public parser
 {
-public:
 	static bool match(const iterator& ) {
 		return false;
 	}
 };
 
 
-struct r_isxdigit : regex_base
+struct r_isxdigit : public parser
 {
+	typedef r_isxdigit real_t;
 	static bool match(const iterator& i) {
 		return isxdigit(*i);
 	}
 };
 
-struct r_isdigit : regex_base
+struct r_isdigit : public parser
 {
+	typedef r_isdigit real_t;
 	static bool match(const iterator& i) {
 		return isdigit(*i);
 	}
 };
 
-struct r_isintsgn : regex_base
+struct r_isintsgn : public parser
 {
+	typedef r_isintsgn real_t;
 	static bool match(const iterator& c) {
 		return *c == 'u' || *c == 'U' || *c == 'l' || *c == 'L'; // TODO: 4 indirections?
 	}
 };
 
 template<char C>
-struct r_isnot : regex_base
+struct r_isnot : public parser
 {
+	typedef r_isnot<C> real_t;
 	static bool match(const iterator& i) {
 		return *i != C;
 	}
 };
 
-struct r_iscletter : regex_base
+struct r_iscletter : public parser
 {
+	typedef r_iscletter real_t;
 	static bool match(const iterator& i) {
 		return *i == '_' || (bool)isalnum(*i);
 	}
 };
 
-struct r_iscletter1 : regex_base
+struct r_iscletter1 : public parser
 {
+	typedef r_iscletter1 real_t;
 	static bool match(const iterator& i) {
 		return *i == '_' || (bool)isalpha(*i);
 	}
 };
 
 template<class C>
-struct kleenee : regex_base
+struct kleenee : public equal_base<C>, public parser
 {
+	typedef kleenee<C> real_t;
 	static bool match(iterator& i) {
-		return C::match(i) && match(++i), true; // TODO: true: a bit inefficient?
+		return C::match(i) && match(incr_if<C>::exec(i)), true; // TODO: true: a bit inefficient?
 	}
 };
 
 template<class C>
-struct kleenee_p : regex_base
+struct kleenee_p : public equal_base<C>, public parser
 {
+	typedef kleenee_p<C> real_t;
 	static bool match(iterator& i) {
-		return C::match(i) && kleenee<C>::match(++i);
+		return C::match(i) && kleenee<C>::match(incr_if<C>::exec(i));
 	}
 };
 
 template<class C>
-struct maybe : regex_base
+struct maybe : public equal_base<C>, public parser
 {
+	typedef maybe<C> real_t;
 	static bool match(iterator& i) {
 		return C::match(i) && (incr_if<C>::exec(i), true), true; // TODO: use incr_if here, too?
 	}
 };
-
-template<class Regex>
-void assert_match(const char* str, std::size_t digits) {
-	std::string s = str;
-	std::string::const_iterator itr0 = s.begin(), itr = s.begin();
-	Regex::match(itr);
-	std::cerr << std::distance(itr0, itr) << std::endl;
-	if(std::distance(itr0, itr) != digits)
-	{
-		std::cerr << "at: " << ((&*itr)-2) << std::endl;
-		 throw "regex test error";
-	}
-}
-
-template<class Regex>
-void assert_match(const char* str) {
-	assert_match<Regex>(str, strlen(str));
-}
 
 typedef regex<	raw<'0'>,
 		one_of<'x', 'X'>,
@@ -453,36 +512,231 @@ typedef regex<	one_of<'e', 'E'>,
 		maybe< one_of<'+', '-'> >
 	> r_exp_part;
 
-typedef regex<	r_iscletter1,
+class r_identifier : public
+	regex<	r_iscletter1,
 		kleenee<r_iscletter>
-	> r_identifier;
+	> {};
 
 typedef regex<	one_of<'f', 'F', 'l', 'L'> > r_floatsgn;
 
-typedef regex<	kleenee_p<r_isdigit>,
+class r_float_const : public
+	regex<
+		kleenee_p<r_isdigit>,
 		r_exp_part,
 		maybe<r_floatsgn>
-	> r_float_const;
+	> {};
 
+#if 1
+/*typedef*/ class r_float_const_2 :
+	public regex<
+		kleenee<r_isdigit>,
+		raw<'.'>,
+		kleenee_p<r_isdigit>,
+		maybe<r_exp_part>,
+		maybe<r_floatsgn>
+	> /*r_float_const_2*/ {};
+	#else
 typedef regex<	kleenee<r_isdigit>,
 		raw<'.'>,
 		kleenee_p<r_isdigit>,
 		maybe<r_exp_part>,
 		maybe<r_floatsgn>
 	> r_float_const_2;
+#endif
 
-typedef regex<	kleenee_p<r_isdigit>,
+class r_float_const_3 : public
+	regex<
+		kleenee_p<r_isdigit>,
 		raw<'.'>,
 		kleenee<r_isdigit>,
 		maybe<r_exp_part>,
 		maybe<r_floatsgn>
-	> r_float_const_3;
+	> {};
 
-typedef regex<	maybe< raw<'L'> >,
+class r_string_literal : public
+	regex<	maybe< raw<'L'> >,
 		raw<'"'>,
 		kleenee_p< r_isnot<'"'> >,
 		raw<'"'>
-	> r_string_literal;
+	> {};
+
+template<token_type Token, char C1, char C2 = 0, char C3 = 0, char C4 = 0,
+	char C5 = 0, char C6 = 0, char C7 = 0, char C8 = 0>
+class tok_str : public str<C1, C2, C3, C4, C5, C6, C7, C8> {};
+
+class c_keywords_1 : public
+	choices <
+		tok_str<k_auto, 'a', 'u', 't', 'o'>,
+		tok_str<k_break, 'b', 'r', 'e', 'a', 'k'>,
+		tok_str<k_case, 'c', 'a', 's', 'e'>,
+		tok_str<k_char, 'c', 'h', 'a', 'r'>,
+		tok_str<k_const, 'c', 'o', 'n', 's', 't'>,
+		tok_str<k_continue, 'c', 'o', 'n', 't', 'i', 'n', 'u', 'e'>,
+		tok_str<k_default, 'd', 'e', 'f', 'a', 'u', 'l', 't'>,
+		tok_str<k_do, 'd', 'o'>
+	> {};
+		
+
+class c_keywords_2 : public
+	choices<
+		tok_str<k_double, 'd', 'o', 'u', 'b', 'l', 'e'>,
+		tok_str<k_else, 'e', 'l', 's', 'e'>,
+		tok_str<k_enum, 'e', 'n', 'u', 'm'>,
+		tok_str<k_extern, 'e', 'x', 't', 'e', 'r', 'n'>,
+		tok_str<k_float, 'f', 'l', 'o', 'a', 't'>,
+		tok_str<k_for, 'f', 'o', 'r'>,
+		tok_str<k_goto, 'g', 'o', 't', 'o'>,
+		tok_str<k_if, 'i', 'f'>
+	> {};
+
+class c_keywords_3 : public
+	choices<
+		tok_str<k_int, 'i', 'n', 't'>,
+		tok_str<k_long, 'l', 'o', 'n', 'g'>,
+		tok_str<k_register, 'r', 'e', 'g', 'i', 's', 't', 'e', 'r'>,
+		tok_str<k_return, 'r', 'e', 't', 'u', 'r', 'n'>,
+		tok_str<k_short, 's', 'h', 'o', 'r', 't'>,
+		tok_str<k_signed, 's', 'i', 'g', 'n', 'e', 'd'>,
+		tok_str<k_sizeof, 's', 'i', 'z', 'e', 'o', 'f'>,
+		tok_str<k_static, 's', 't', 'a', 't', 'i', 'c'>
+	> {};
+
+class c_keywords_4 : public
+	choices<
+		tok_str<k_struct, 's', 't', 'r', 'u', 'c', 't'>,
+		tok_str<k_switch, 's', 'w', 'i', 't', 'c', 'h'>,
+		tok_str<k_typedef, 't', 'y', 'p', 'e', 'd', 'e', 'f'>,
+		tok_str<k_union, 'u', 'n', 'i', 'o', 'n'>,
+		tok_str<k_unsigned, 'u', 'n', 's', 'i', 'g', 'n', 'e', 'd'>,
+		tok_str<k_void, 'v', 'o', 'i', 'd'>,
+		tok_str<k_volatile, 'v', 'o', 'l', 'a', 't', 'i', 'l', 'e'>,
+		tok_str<k_while, 'w', 'h', 'i', 'l', 'e'>
+	> {};
+
+class c_other : public
+	choices<
+		tok_str<ellipsis, '.', '.', '.'>,
+		tok_str<right_assign, '>', '>', '='>,
+		tok_str<left_assign, '<', '<', '"'>,
+		tok_str<add_assign, '+', '='>,
+		tok_str<sub_assign, '-', '='>,
+		tok_str<mul_assign, '*', '='>,
+		tok_str<div_assign, '/', '='>
+	> {};
+
+class c_file_poss : public
+	choices<
+		c_keywords_1,
+		c_keywords_2,
+		c_keywords_3,
+		c_keywords_4
+	> {};
+
+
+
+#if 0
+
+{L}({L}|{D})*		{ count(); return(check_type()); }
+
+0[xX]{H}+{IS}?		{ count(); return(CONSTANT); }
+0{D}+{IS}?		{ count(); return(CONSTANT); }
+{D}+{IS}?		{ count(); return(CONSTANT); }
+L?'(\\.|[^\\'])+'	{ count(); return(CONSTANT); }
+
+{D}+{E}{FS}?		{ count(); return(CONSTANT); }
+{D}*"."{D}+({E})?{FS}?	{ count(); return(CONSTANT); }
+{D}+"."{D}*({E})?{FS}?	{ count(); return(CONSTANT); }
+
+L?\"(\\.|[^\\"])*\"	{ count(); return(STRING_LITERAL); }
+
+"..."			{ count(); return(ELLIPSIS); }
+">>="			{ count(); return(RIGHT_ASSIGN); }
+"<<="			{ count(); return(LEFT_ASSIGN); }
+"+="			{ count(); return(ADD_ASSIGN); }
+"-="			{ count(); return(SUB_ASSIGN); }
+"*="			{ count(); return(MUL_ASSIGN); }
+"/="			{ count(); return(DIV_ASSIGN); }
+"%="			{ count(); return(MOD_ASSIGN); }
+"&="			{ count(); return(AND_ASSIGN); }
+"^="			{ count(); return(XOR_ASSIGN); }
+"|="			{ count(); return(OR_ASSIGN); }
+">>"			{ count(); return(RIGHT_OP); }
+"<<"			{ count(); return(LEFT_OP); }
+"++"			{ count(); return(INC_OP); }
+"--"			{ count(); return(DEC_OP); }
+"->"			{ count(); return(PTR_OP); }
+"&&"			{ count(); return(AND_OP); }
+"||"			{ count(); return(OR_OP); }
+"<="			{ count(); return(LE_OP); }
+">="			{ count(); return(GE_OP); }
+"=="			{ count(); return(EQ_OP); }
+"!="			{ count(); return(NE_OP); }
+";"			{ count(); return(';'); }
+("{"|"<%")		{ count(); return('{'); }
+("}"|"%>")		{ count(); return('}'); }
+","			{ count(); return(','); }
+":"			{ count(); return(':'); }
+"="			{ count(); return('='); }
+"("			{ count(); return('('); }
+")"			{ count(); return(')'); }
+("["|"<:")		{ count(); return('['); }
+("]"|":>")		{ count(); return(']'); }
+"."			{ count(); return('.'); }
+"&"			{ count(); return('&'); }
+"!"			{ count(); return('!'); }
+"~"			{ count(); return('~'); }
+"-"			{ count(); return('-'); }
+"+"			{ count(); return('+'); }
+"*"			{ count(); return('*'); }
+"/"			{ count(); return('/'); }
+"%"			{ count(); return('%'); }
+"<"			{ count(); return('<'); }
+">"			{ count(); return('>'); }
+"^"			{ count(); return('^'); }
+"|"			{ count(); return('|'); }
+"?"			{ count(); return('?'); }
+
+[ \t\v\n\f]		{ count(); }
+.
+#endif
+
+class c_file : public kleenee< c_file_poss > {};
+
+class debugger {
+public:
+	template<class T, class C1, class C2, class C3, class C4, class C5, class C6, class C7, class C8>
+	static void collect(const T&, const multiple_base<C1, C2, C3, C4, C5, C6, C7, C8>* ) {
+		std::cerr << "collecting kleenee: " << "?" << std::endl;
+	}
+	template<class T, class C1, class C2, class C3, class C4, class C5, class C6, class C7, class C8>
+	static void collect(const T&, const choices_base<C1, C2, C3, C4, C5, C6, C7, C8>* ) {
+		std::cerr << "collecting kleenee: " << "?" << std::endl;
+	}
+
+public:
+	typedef bool result;
+};
+
+template<class Regex>
+void assert_match(const char* str, std::size_t digits) {
+	std::string s = str;
+	std::string::const_iterator itr0 = s.begin(), itr = s.begin();
+	
+	typedef typename mk_action<debugger, Regex>::type ac_regex;
+	ac_regex::match(itr);
+	
+	if(std::distance(itr0, itr) != digits)
+	{
+		std::cerr << std::distance(itr0, itr) << std::endl;
+		std::cerr << "at: " << (&*itr) << std::endl;
+		 throw "regex test error";
+	}
+}
+
+template<class Regex>
+void assert_match(const char* str) {
+	assert_match<Regex>(str, strlen(str));
+}
 
 inline void test_regex()
 {
@@ -494,7 +748,7 @@ inline void test_regex()
 	assert_match<r_float_const_2>(".52e+f");
 	assert_match<r_float_const_2>(".52f");
 
-	assert_match< debug<r_float_const_2> >(".52f");
+	assert_match<c_file>("autoabreak");
 };
 
 class token_map
@@ -530,4 +784,103 @@ public:
 };
 
 #endif // TOKEN_H
+
+#if 0
+"auto"			{ count(); return(AUTO); }
+"break"			{ count(); return(BREAK); }
+"case"			{ count(); return(CASE); }
+"char"			{ count(); return(CHAR); }
+"const"			{ count(); return(CONST); }
+"continue"		{ count(); return(CONTINUE); }
+"default"		{ count(); return(DEFAULT); }
+"do"			{ count(); return(DO); }
+"double"		{ count(); return(DOUBLE); }
+"else"			{ count(); return(ELSE); }
+"enum"			{ count(); return(ENUM); }
+"extern"		{ count(); return(EXTERN); }
+"float"			{ count(); return(FLOAT); }
+"for"			{ count(); return(FOR); }
+"goto"			{ count(); return(GOTO); }
+"if"			{ count(); return(IF); }
+"int"			{ count(); return(INT); }
+"long"			{ count(); return(LONG); }
+"register"		{ count(); return(REGISTER); }
+"return"		{ count(); return(RETURN); }
+"short"			{ count(); return(SHORT); }
+"signed"		{ count(); return(SIGNED); }
+"sizeof"		{ count(); return(SIZEOF); }
+"static"		{ count(); return(STATIC); }
+"struct"		{ count(); return(STRUCT); }
+"switch"		{ count(); return(SWITCH); }
+"typedef"		{ count(); return(TYPEDEF); }
+"union"			{ count(); return(UNION); }
+"unsigned"		{ count(); return(UNSIGNED); }
+"void"			{ count(); return(VOID); }
+"volatile"		{ count(); return(VOLATILE); }
+"while"			{ count(); return(WHILE); }
+
+{L}({L}|{D})*		{ count(); return(check_type()); }
+
+0[xX]{H}+{IS}?		{ count(); return(CONSTANT); }
+0{D}+{IS}?		{ count(); return(CONSTANT); }
+{D}+{IS}?		{ count(); return(CONSTANT); }
+L?'(\\.|[^\\'])+'	{ count(); return(CONSTANT); }
+
+{D}+{E}{FS}?		{ count(); return(CONSTANT); }
+{D}*"."{D}+({E})?{FS}?	{ count(); return(CONSTANT); }
+{D}+"."{D}*({E})?{FS}?	{ count(); return(CONSTANT); }
+
+L?\"(\\.|[^\\"])*\"	{ count(); return(STRING_LITERAL); }
+
+"..."			{ count(); return(ELLIPSIS); }
+">>="			{ count(); return(RIGHT_ASSIGN); }
+"<<="			{ count(); return(LEFT_ASSIGN); }
+"+="			{ count(); return(ADD_ASSIGN); }
+"-="			{ count(); return(SUB_ASSIGN); }
+"*="			{ count(); return(MUL_ASSIGN); }
+"/="			{ count(); return(DIV_ASSIGN); }
+"%="			{ count(); return(MOD_ASSIGN); }
+"&="			{ count(); return(AND_ASSIGN); }
+"^="			{ count(); return(XOR_ASSIGN); }
+"|="			{ count(); return(OR_ASSIGN); }
+">>"			{ count(); return(RIGHT_OP); }
+"<<"			{ count(); return(LEFT_OP); }
+"++"			{ count(); return(INC_OP); }
+"--"			{ count(); return(DEC_OP); }
+"->"			{ count(); return(PTR_OP); }
+"&&"			{ count(); return(AND_OP); }
+"||"			{ count(); return(OR_OP); }
+"<="			{ count(); return(LE_OP); }
+">="			{ count(); return(GE_OP); }
+"=="			{ count(); return(EQ_OP); }
+"!="			{ count(); return(NE_OP); }
+";"			{ count(); return(';'); }
+("{"|"<%")		{ count(); return('{'); }
+("}"|"%>")		{ count(); return('}'); }
+","			{ count(); return(','); }
+":"			{ count(); return(':'); }
+"="			{ count(); return('='); }
+"("			{ count(); return('('); }
+")"			{ count(); return(')'); }
+("["|"<:")		{ count(); return('['); }
+("]"|":>")		{ count(); return(']'); }
+"."			{ count(); return('.'); }
+"&"			{ count(); return('&'); }
+"!"			{ count(); return('!'); }
+"~"			{ count(); return('~'); }
+"-"			{ count(); return('-'); }
+"+"			{ count(); return('+'); }
+"*"			{ count(); return('*'); }
+"/"			{ count(); return('/'); }
+"%"			{ count(); return('%'); }
+"<"			{ count(); return('<'); }
+">"			{ count(); return('>'); }
+"^"			{ count(); return('^'); }
+"|"			{ count(); return('|'); }
+"?"			{ count(); return('?'); }
+
+[ \t\v\n\f]		{ count(); }
+.			{ /* ignore bad characters */ }
+
+#endif
 
