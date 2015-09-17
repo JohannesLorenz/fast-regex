@@ -375,15 +375,16 @@ struct choices_base
 
 template<class C1, class C2, class C3, class C4,
 	class C5 , class C6, class C7,
-	class C8 >
+	class C8>
 struct choices : public parser,
 	public choices_base<C1, C2, C3, C4, C5, C6, C7, C8> 
 {
 	typedef choices<C1, C2, C3, C4, C5, C6, C7, C8> real_t;
 	// TODO: copy itr
 	static bool match(iterator& i, iterator tmp = iterator()) {
-		return (tmp=i, C1::match(i)) || (i = tmp, choices<C2, C3, C4, C5, C6, C7, C8,
-			Nothing>::match(i));
+		return (tmp=i, C1::match(i) && (incr_if<C1>::exec(i), true))
+			|| (i = tmp, choices<C2, C3, C4, C5, C6, C7, C8,
+				Nothing>::match(i));
 	}
 };
 
@@ -789,7 +790,11 @@ inline void test_regex()
 	assert_match<r_float_const_2>(".52e+f");
 	assert_match<r_float_const_2>(".52f");
 
-	assert_match<c_file>("int main() { return 0; }");
+	assert_match<c_file>("int main() {\n"
+		"int x = 0;"
+		"int y = ++x % x ^ 1;"
+		"return 0; }\n"
+		);
 }
 
 class token_map
