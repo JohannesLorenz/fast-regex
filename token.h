@@ -142,7 +142,7 @@ public:
 class parser // TODO: parse_base?
 {
 protected:
-	typedef std::string::const_iterator iterator;
+	//typedef std::string::const_iterator iterator;
 public:
 	typedef bool result;
 	static const bool incr_after_match = true;
@@ -151,12 +151,14 @@ public:
 template<char C>
 struct raw : public parser {
 	typedef raw<C> real_t;
-	constexpr static bool match(iterator& i) { return *i == C; }
+	template<class Itr>
+	constexpr static bool match(Itr& i) { return *i == C; }
 };
 
 //! represents that nothing more is to be parsed.
 struct Nothing : public parser {
-	constexpr static bool match(iterator& ) {
+	template<class Itr>
+	constexpr static bool match(Itr& ) {
 #ifdef USE_CPP11
 		return false;
 #else
@@ -172,7 +174,8 @@ template<class A> struct mk_action<A, Nothing>;
 template<class A, class Terminal> class action : public parser {
 public:
 	typedef Terminal child_t;
-	constexpr static bool match(iterator& i) {
+	template<class Itr>
+	constexpr static bool match(Itr& i) {
 		/*std::cerr << "trying to match terminal:" << std::endl << typeid(Terminal).name() << std::endl;
 		bool res = Terminal::match(i);
 		if(res)
@@ -185,8 +188,8 @@ public:
 template<class A> class action_nt_base : public parser
 {
 protected:
-	template<class Child>
-	constexpr static bool match_base(iterator& i, typename A::result tmp = typename A::result(), Child* ct = NULL)
+	template<class Child, class Itr>
+	constexpr static bool match_base(Itr& i, typename A::result tmp = typename A::result(), Child* ct = NULL)
 	{
 		// if the child matched, "collect" it, then reach it up
 		// to the next level
@@ -200,7 +203,8 @@ class action<A, T<C1> > : public action_nt_base<A> {
 public:
 	typedef T< typename  mk_action<A, C1>::type > child_t;
 	typedef action_nt_base<A> base_t;
-	constexpr static bool match(typename base_t::iterator& i) {
+	template<class Itr>
+	constexpr static bool match(Itr& i) {
 	/*	std::cerr << "trying to match:" << std::endl << typeid(T<C1>).name() << std::endl;
 		bool res = child_t::match(i);
 		if(res)
@@ -226,7 +230,9 @@ public:
 		typename mk_action<A, C8>::type
 		> child_t;
 	typedef action_nt_base<A> base_t;
-	constexpr static bool match(typename base_t::iterator& i) {
+
+	template<class Itr>
+	constexpr static bool match(Itr& i) {
 		// TODO: do not print "Nothing"s?
 	/*	std::cerr << "trying to match:" << std::endl << typeid(T<C1, C2, C3, C4, C5, C6, C7, C8>).name() << std::endl;
 		bool res = child_t::match(i);
@@ -249,13 +255,13 @@ template<class A> struct mk_action<A, Nothing> {
 
 
 template<bool > struct incr_if_b { // default case: true
-	typedef std::string::const_iterator iterator;
-	static iterator& exec(iterator& i) { return ++i; }
+	template<class Itr>
+	static Itr& exec(Itr& i) { return ++i; }
 };
 
 template<> struct incr_if_b<false> {
-	typedef std::string::const_iterator iterator;
-	static iterator& exec(iterator& i) { return i; }
+	template<class Itr>
+	static Itr& exec(Itr& i) { return i; }
 };
 
 // on match, some regexp parsers may stop at the last sign and thus must be
@@ -263,15 +269,15 @@ template<> struct incr_if_b<false> {
 // behind the last matched char (e.g. while loops). @a incr_if increments the
 // pointer when necessary
 template<class C> struct incr_if {
-	typedef std::string::const_iterator iterator;
-	static iterator& exec(iterator& i) { return incr_if_b<C::incr_after_match>::exec(i); }
+	template<class Itr>
+	static Itr& exec(Itr& i) { return incr_if_b<C::incr_after_match>::exec(i); }
 };
 
 // special case: redirect
 template<class A, class C1>
 struct incr_if<action<A, C1> > {
-	typedef std::string::const_iterator iterator;
-	static iterator& exec(iterator& i) { return incr_if<typename action<A, C1>::child_t>::exec(i); }
+	template<class Itr>
+	static Itr& exec(Itr& i) { return incr_if<typename action<A, C1>::child_t>::exec(i); }
 };
 
 template<class C1=Nothing, class C2=Nothing, class C3=Nothing, class C4=Nothing,
@@ -289,7 +295,8 @@ template<class C1, class C2=Nothing, class C3=Nothing, class C4=Nothing,
 struct regex : public multiple_base<C1, C2, C3, C4, C5, C6, C7, C8>, parser
 {
 	typedef regex<C1, C2, C3, C4, C5, C6, C7, C8> real_t;
-	static typename C1::result match(iterator& i) {
+	template<class Itr>
+	static typename C1::result match(Itr& i) {
 		return C1::match(i) && regex<C2, C3, C4, C5, C6, C7, C8,
 			Nothing>::match(incr_if<C1>::exec(i));
 	}
@@ -300,7 +307,8 @@ template<>
 struct regex<Nothing, Nothing, Nothing, Nothing, Nothing, Nothing,
 	Nothing, Nothing> : public parser
 {
-	constexpr static bool match(const iterator& ) {
+	template<class Itr>
+	constexpr static bool match(const Itr& ) {
 		return true;
 	}
 };
@@ -330,7 +338,8 @@ class str : public parser
 public:
 	typedef str<C1, C2, C3, C4, C5, C6, C7, C8> real_t;
 	//typedef base real_t;
-	constexpr static bool match(iterator& i) {
+	template<class Itr>
+	constexpr static bool match(Itr& i) {
 		return !strncmp(&*i, match_str, sz);
 	}
 };
@@ -353,7 +362,8 @@ struct choices : public parser,
 {
 	typedef choices<C1, C2, C3, C4, C5, C6, C7, C8> real_t;
 	// TODO: copy itr
-	constexpr static bool match(iterator& i, iterator tmp = iterator()) {
+	template<class Itr>
+	constexpr static bool match(Itr& i, Itr tmp = Itr()) {
 		return (tmp=i, C1::match(i) && (incr_if<C1>::exec(i), true))
 			|| (i = tmp, choices<C2, C3, C4, C5, C6, C7, C8,
 				Nothing>::match(i));
@@ -365,7 +375,8 @@ template<>
 struct choices<Nothing, Nothing, Nothing, Nothing, Nothing, Nothing,
 	Nothing, Nothing> : public parser
 {
-	constexpr static bool match(const iterator& ) {
+	template<class Itr>
+	constexpr static bool match(const Itr& ) {
 		return false;
 	}
 };
@@ -376,7 +387,8 @@ struct one_of : public parser, public choices_base<raw<C1>, raw<C2>, raw<C3>, ra
 	raw<C5>, raw<C6>, raw<C7>, raw<C8> > 
 {
 	typedef one_of<C1, C2, C3, C4, C5, C6, C7, C8> real_t;
-	constexpr static bool match(iterator& i) {
+	template<class Itr>
+	constexpr static bool match(Itr& i) {
 		return raw<C1>::match(i) || one_of<C2, C3, C4, C5, C6, C7, C8,
 			0>::match(i);
 	}
@@ -385,7 +397,8 @@ struct one_of : public parser, public choices_base<raw<C1>, raw<C2>, raw<C3>, ra
 template<>
 struct one_of<0,0,0,0,0,0,0,0> : public parser
 {
-	constexpr static bool match(const iterator& ) {
+	template<class Itr>
+	constexpr static bool match(const Itr& ) {
 		return false;
 	}
 };
@@ -403,7 +416,8 @@ inline constexpr bool c_isxdigit(const char c) {
 struct r_isxdigit : public parser
 {
 	typedef r_isxdigit real_t;
-	constexpr static bool match(const iterator& i) {
+	template<class Itr>
+	constexpr static bool match(const Itr& i) {
 		return c_isxdigit(*i);
 	}
 };
@@ -411,7 +425,8 @@ struct r_isxdigit : public parser
 struct r_isdigit : public parser
 {
 	typedef r_isdigit real_t;
-	constexpr static bool match(const iterator& i) {
+	template<class Itr>
+	constexpr static bool match(const Itr& i) {
 		return c_isdigit(*i);
 	}
 };
@@ -419,7 +434,8 @@ struct r_isdigit : public parser
 struct r_isintsgn : public parser
 {
 	typedef r_isintsgn real_t;
-	constexpr static bool match(const iterator& c) {
+	template<class Itr>
+	constexpr static bool match(const Itr& c) {
 		return *c == 'u' || *c == 'U' || *c == 'l' || *c == 'L'; // TODO: 4 indirections?
 	}
 };
@@ -428,7 +444,8 @@ template<char C>
 struct r_isnot : public parser
 {
 	typedef r_isnot<C> real_t;
-	constexpr static bool match(const iterator& i) {
+	template<class Itr>
+	constexpr static bool match(const Itr& i) {
 		return *i != C;
 	}
 };
@@ -436,7 +453,8 @@ struct r_isnot : public parser
 struct r_iscletter : public parser
 {
 	typedef r_iscletter real_t;
-	constexpr static bool match(const iterator& i) {
+	template<class Itr>
+	constexpr static bool match(const Itr& i) {
 		return *i == '_' || (bool)isalnum(*i);
 	}
 };
@@ -444,7 +462,8 @@ struct r_iscletter : public parser
 struct r_iscletter1 : public parser
 {
 	typedef r_iscletter1 real_t;
-	constexpr static bool match(const iterator& i) {
+	template<class Itr>
+	constexpr static bool match(const Itr& i) {
 		return *i == '_' || (bool)isalpha(*i);
 	}
 };
@@ -453,7 +472,8 @@ template<class C>
 struct kleenee : public equal_base<C>, public parser
 {
 	typedef kleenee<C> real_t;
-	constexpr static bool match(iterator& i) {
+	template<class Itr>
+	constexpr static bool match(Itr& i) {
 #ifndef USE_CPP11
 		std::cerr << "at: " << (*i) << std::endl;
 #endif
@@ -466,7 +486,8 @@ template<class C>
 struct kleenee_p : public equal_base<C>, public parser
 {
 	typedef kleenee_p<C> real_t;
-	constexpr static bool match(iterator& i) {
+	template<class Itr>
+	constexpr static bool match(Itr& i) {
 		return C::match(i) && kleenee<C>::match(incr_if<C>::exec(i));
 	}
 	static const bool incr_after_match = false;
@@ -476,7 +497,8 @@ template<class C>
 struct maybe : public equal_base<C>, public parser
 {
 	typedef maybe<C> real_t;
-	constexpr static bool match(iterator& i) {
+	template<class Itr>
+	constexpr static bool match(Itr& i) {
 		return C::match(i) && (incr_if<C>::exec(i), true), true; // TODO: use incr_if here, too?
 	}
 	static const bool incr_after_match = false;
@@ -760,15 +782,13 @@ void assert_match(const char* str, std::size_t digits) {
 
 template<class Regex>
 constexpr bool c_assert_match(const char* str, std::size_t digits,
-	std::string s = "",
-	std::string::const_iterator itr0 = std::string::const_iterator(),
-	std::string::const_iterator itr = std::string::const_iterator()) {
+	const char* itr0 = NULL,
+	const char* itr = NULL) {
 
 	typedef typename mk_action<debugger, Regex>::type ac_regex;
 	static_assert((
-		s = str,
-		itr0 = s.begin(),
-		itr = s.begin(),
+		itr0 = str,
+		itr = str,
 		ac_regex::match(itr),
 		std::distance(itr0, itr) == digits),
 		"static match failure");

@@ -1,6 +1,7 @@
 #include <string>
 #include <iostream>
 #include <sstream>
+#include <cstdlib>
 #include "token.h"
 
 void print_err(const char* msg) {
@@ -10,6 +11,7 @@ void print_err(const char* msg) {
 
 int main()
 {
+	int exit_code = EXIT_SUCCESS;
 	try
 	{
 		test_regex();
@@ -25,8 +27,14 @@ int main()
 		cfile cf(s);*/
 	} catch (std::string msg) {
 		print_err(msg.c_str());
+		exit_code = EXIT_FAILURE;
 	} catch (const char* msg) {
 		print_err(msg);
+		exit_code = EXIT_FAILURE;
 	}
-	return 0;
+	std::cerr << ((exit_code == EXIT_SUCCESS)
+			? "Success!"
+			: "Failure!")
+			<< std::endl;
+	return exit_code;
 }

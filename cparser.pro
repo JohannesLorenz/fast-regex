@@ -9,5 +9,8 @@ TEMPLATE = subdirs
 
 HEADERS += token.h
 
-SOURCES += token.cpp
+SOURCES += token.cpp \
+	main.cpp
+
+OTHER_FILES += Makefile
 
