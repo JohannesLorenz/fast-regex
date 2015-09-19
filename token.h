@@ -349,22 +349,33 @@ template<> struct to_raw<0> { typedef Nothing type; };
 
 template<char C1, char C2, char C3, char C4, char C5, char C6,
 	char C7, char C8>
+struct size_until_n
+{
+	static const std::size_t value = 1 + size_until_n<C2, C3, C4, C5, C6, C7, C8, 0>::value;
+};
+
+template<>
+struct size_until_n <0,0,0,0,0,0,0,0>
+{
+	static const std::size_t value = 0;
+};
+
+template<char C1, char C2, char C3, char C4, char C5, char C6,
+	char C7, char C8>
 class str : public parser
 {
-	typedef regex<
-		typename to_raw<C1>::type, typename to_raw<C2>::type,
-		typename to_raw<C3>::type, typename to_raw<C4>::type,
-		typename to_raw<C5>::type, typename to_raw<C6>::type,
-		typename to_raw<C7>::type, typename to_raw<C8>::type
-	>
-	base;
+	static const std::size_t sz = size_until_n<C1, C2, C3, C4, C5, C6, C7, C8>::value;
+	static const char match_str[8];
 public:
 	typedef str<C1, C2, C3, C4, C5, C6, C7, C8> real_t;
 	//typedef base real_t;
 	static bool match(iterator& i) {
-		return base::match(i);
+		return !strncmp(&*i, match_str, sz);
 	}
 };
+
+template<char C1, char C2, char C3, char C4, char C5, char C6, char C7, char C8>
+const char str<C1, C2, C3, C4, C5, C6, C7, C8>::match_str[8] = { C1, C2, C3, C4, C5, C6, C7, C8 };
 
 template<class C1=Nothing, class C2=Nothing, class C3=Nothing, class C4=Nothing,
 	class C5=Nothing , class C6=Nothing, class C7=Nothing,
