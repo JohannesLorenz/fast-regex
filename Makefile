@@ -1,5 +1,5 @@
 CXX=clang++
-FLAGS=-g -ggdb -O0
+FLAGS=-g -ggdb -O0 # -std=c++11 -DUSE_CPP11
 all: libcparser.so main
 %.o: %.cpp
 	${CXX} ${FLAGS} -Wall -pipe -fPIC -c $<
