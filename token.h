@@ -145,7 +145,7 @@ protected:
 	typedef std::string::const_iterator iterator;
 public:
 	typedef bool result;
-	static const bool incr_after_parse = true;
+	static const bool incr_after_match = true;
 };
 
 template<char C>
@@ -164,21 +164,6 @@ struct Nothing : public parser {
 #endif
 	}
 };
-
-template<class C> struct kleenee;
-template<class C> struct kleenee_p;
-template<class C> struct maybe;
-template<class C1=Nothing, class C2=Nothing, class C3=Nothing, class C4=Nothing,
-	class C5=Nothing , class C6=Nothing, class C7=Nothing,
-	class C8=Nothing>
-struct regex;
-template<char C1, char C2, char C3=0, char C4=0, char C5=0, char C6=0,
-	char C7=0, char C8=0>
-class str; 
-template<class C1=Nothing, class C2=Nothing, class C3=Nothing, class C4=Nothing,
-	class C5=Nothing, class C6=Nothing, class C7=Nothing,
-	class C8=Nothing>
-struct choices;
 
 template<class A, class T> struct mk_action;
 template<class A> struct mk_action<A, Nothing>;
@@ -252,20 +237,6 @@ public:
 	}
 };
 
-#if 0
-//! action template for classes with one templ-templ-param
-template<class A, template<class > class T, class C1>
-class mk_action_2 {
-};
-
-//! action template for classes with 8 templ-templ-param
-template<class A,
-	template<class, class, class, class, class, class, class, class > class T,
-	class C1, class C2, class C3, class C4, class C5, class C6, class C7, class C8>
-class action<A, T<C1, C2, C3, C4, C5, C6, C7, C8> > : public action_nt_base<A> {
-p
-#endif
-
 // do not produce action<Nothing> (this would let classes that assume "Nothing" fail
 // also, action output for Nothing should be avoided
 template<class A, class T> struct mk_action {
@@ -277,6 +248,15 @@ template<class A> struct mk_action<A, Nothing> {
 };
 
 
+template<bool > struct incr_if_b { // default case: true
+	typedef std::string::const_iterator iterator;
+	static iterator& exec(iterator& i) { return ++i; }
+};
+
+template<> struct incr_if_b<false> {
+	typedef std::string::const_iterator iterator;
+	static iterator& exec(iterator& i) { return i; }
+};
 
 // on match, some regexp parsers may stop at the last sign and thus must be
 // increased (e.g. simple checks like isalnum()). others, however, may stop
@@ -284,47 +264,14 @@ template<class A> struct mk_action<A, Nothing> {
 // pointer when necessary
 template<class C> struct incr_if {
 	typedef std::string::const_iterator iterator;
-	static iterator& exec(iterator& i) { return ++i; }
+	static iterator& exec(iterator& i) { return incr_if_b<C::incr_after_match>::exec(i); }
 };
 
-template<class C> struct incr_if<kleenee<C> > {
-	typedef std::string::const_iterator iterator;
-	static iterator& exec(iterator& i) { return i; }
-};
-
-
-template<class C> struct incr_if<kleenee_p<C> > { // TODO: use sfinae
-	typedef std::string::const_iterator iterator;
-	static iterator& exec(iterator& i) { return i; }
-};
-template<class C> struct incr_if<maybe<C> > { // TODO: use sfinae
-	typedef std::string::const_iterator iterator;
-	static iterator& exec(iterator& i) { return i; }
-};
-template<class C1, class C2, class C3, class C4, class C5, class C6,
-	class C7, class C8>
-	struct incr_if<regex<C1, C2, C3, C4, C5, C6, C7, C8> > { // TODO: use sfinae
-	typedef std::string::const_iterator iterator;
-	static iterator& exec(iterator& i) { return i; }
-};
+// special case: redirect
 template<class A, class C1>
 struct incr_if<action<A, C1> > {
 	typedef std::string::const_iterator iterator;
 	static iterator& exec(iterator& i) { return incr_if<typename action<A, C1>::child_t>::exec(i); }
-};
-
-template<char C1, char C2, char C3, char C4, char C5, char C6, char C7, char C8>
-struct incr_if<str<C1, C2, C3, C4, C5, C6, C7, C8> >
-{
-	typedef std::string::const_iterator iterator;
-	static iterator& exec(iterator& i) { return ++i; }
-};
-template<class C1, class C2, class C3, class C4,
-	class C5 , class C6, class C7,
-	class C8 >
-struct incr_if<choices<C1, C2, C3, C4, C5, C6, C7, C8> > {
-	typedef std::string::const_iterator iterator;
-	static iterator& exec(iterator& i) { return i; }
 };
 
 template<class C1=Nothing, class C2=Nothing, class C3=Nothing, class C4=Nothing,
@@ -336,12 +283,9 @@ struct multiple_base
 template<class C>
 struct equal_base : multiple_base<C> {};
 
-/*template<class C1, class C2, class C3=Nothing, class C4=Nothing,
-	class C5 , class C6=Nothing, class C7=Nothing,
-	class C8 >*/
-template<class C1, class C2, class C3, class C4,
-	class C5, class C6, class C7,
-	class C8>
+template<class C1, class C2=Nothing, class C3=Nothing, class C4=Nothing,
+	class C5=Nothing, class C6=Nothing, class C7=Nothing,
+	class C8=Nothing>
 struct regex : public multiple_base<C1, C2, C3, C4, C5, C6, C7, C8>, parser
 {
 	typedef regex<C1, C2, C3, C4, C5, C6, C7, C8> real_t;
@@ -349,7 +293,7 @@ struct regex : public multiple_base<C1, C2, C3, C4, C5, C6, C7, C8>, parser
 		return C1::match(i) && regex<C2, C3, C4, C5, C6, C7, C8,
 			Nothing>::match(incr_if<C1>::exec(i));
 	}
-	static const bool incr_after_parse = false;
+	static const bool incr_after_match = false;
 };
 
 template<>
@@ -377,8 +321,8 @@ struct size_until_n <0,0,0,0,0,0,0,0>
 	static const std::size_t value = 0;
 };
 
-template<char C1, char C2, char C3, char C4, char C5, char C6,
-	char C7, char C8>
+template<char C1, char C2, char C3 = 0, char C4 = 0,
+	char C5 = 0, char C6 = 0, char C7 = 0, char C8 = 0>
 class str : public parser
 {
 	static const std::size_t sz = size_until_n<C1, C2, C3, C4, C5, C6, C7, C8>::value;
@@ -389,7 +333,6 @@ public:
 	constexpr static bool match(iterator& i) {
 		return !strncmp(&*i, match_str, sz);
 	}
-	static const bool incr_after_parse = false;
 };
 
 template<char C1, char C2, char C3, char C4, char C5, char C6, char C7, char C8>
@@ -402,9 +345,9 @@ struct choices_base
 {
 };
 
-template<class C1, class C2, class C3, class C4,
-	class C5 , class C6, class C7,
-	class C8>
+template<class C1, class C2, class C3 = Nothing, class C4 = Nothing,
+	class C5 = Nothing, class C6 = Nothing,
+	class C7 = Nothing, class C8 = Nothing>
 struct choices : public parser,
 	public choices_base<C1, C2, C3, C4, C5, C6, C7, C8> 
 {
@@ -415,6 +358,7 @@ struct choices : public parser,
 			|| (i = tmp, choices<C2, C3, C4, C5, C6, C7, C8,
 				Nothing>::match(i));
 	}
+	static const bool incr_after_match = false;
 };
 
 template<>
@@ -515,7 +459,7 @@ struct kleenee : public equal_base<C>, public parser
 #endif
 		return C::match(i) && match(incr_if<C>::exec(i)), true; // TODO: true: a bit inefficient?
 	}
-	static const bool incr_after_parse = false;
+	static const bool incr_after_match = false;
 };
 
 template<class C>
@@ -525,7 +469,7 @@ struct kleenee_p : public equal_base<C>, public parser
 	constexpr static bool match(iterator& i) {
 		return C::match(i) && kleenee<C>::match(incr_if<C>::exec(i));
 	}
-	static const bool incr_after_parse = false;
+	static const bool incr_after_match = false;
 };
 
 template<class C>
@@ -535,7 +479,7 @@ struct maybe : public equal_base<C>, public parser
 	constexpr static bool match(iterator& i) {
 		return C::match(i) && (incr_if<C>::exec(i), true), true; // TODO: use incr_if here, too?
 	}
-	static const bool incr_after_parse = false;
+	static const bool incr_after_match = false;
 };
 
 typedef regex<	raw<'0'>,
@@ -620,10 +564,6 @@ template<token_type Token, class C1, class C2 = Nothing,
 	class C5 = Nothing, class C6 = Nothing,
 	class C7 = Nothing, class C8 = Nothing>
 class tok_regex : public regex<C1, C2, C3, C4, C5, C6, C7, C8> {};
-
-/*template<token_type Token, char C1, char C2 = 0, char C3 = 0, char C4 = 0,
-	char C5 = 0, char C6 = 0, char C7 = 0, char C8 = 0>
-class tok_str : public str<C1, C2, C3, C4, C5, C6, C7, C8> {};*/
 
 class c_keywords_1 : public
 	choices <
