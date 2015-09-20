@@ -139,13 +139,13 @@ public:
 	}
 };
 
-class parser // TODO: parse_base?
+class parser
 {
 protected:
 	//typedef std::string::const_iterator iterator;
 public:
-	typedef bool result;
-	static const bool incr_after_match = true;
+//	typedef bool result;
+//	static const bool dont_incr = true;
 };
 
 template<char C>
@@ -253,15 +253,36 @@ template<class A> struct mk_action<A, Nothing> {
 	typedef Nothing type;
 };
 
+template<typename T>
+class detect_dont_incr
+{
+	struct fallback { int dont_incr; }; // add member name "X"
+	struct derived : T, fallback { };
 
-template<bool > struct incr_if_b { // default case: true
-	template<class Itr>
-	static Itr& exec(Itr& i) { return ++i; }
+	template<typename U, U> struct check;
+
+	typedef char array_of_one[1];
+	typedef char array_of_two[2];
+
+	template<typename U>
+	static array_of_one & func(check<int fallback::*, &U::dont_incr> *);
+
+	template<typename U>
+	static array_of_two & func(...);
+
+public:
+	typedef detect_dont_incr type;
+	enum { value = sizeof(func<derived>(0)) == 2 };
 };
 
-template<> struct incr_if_b<false> {
+template<bool b> struct incr_if_b { // default case: true
 	template<class Itr>
 	static Itr& exec(Itr& i) { return i; }
+};
+
+template<> struct incr_if_b<false> { // don't increase = false -> do incr.
+	template<class Itr>
+	static Itr& exec(Itr& i) { return ++i; }
 };
 
 // on match, some regexp parsers may stop at the last sign and thus must be
@@ -270,7 +291,7 @@ template<> struct incr_if_b<false> {
 // pointer when necessary
 template<class C> struct incr_if {
 	template<class Itr>
-	static Itr& exec(Itr& i) { return incr_if_b<C::incr_after_match>::exec(i); }
+	static Itr& exec(Itr& i) { return incr_if_b<detect_dont_incr<C>::value>::exec(i); }
 };
 
 // special case: redirect
@@ -296,11 +317,11 @@ struct regex : public multiple_base<C1, C2, C3, C4, C5, C6, C7, C8>, parser
 {
 	typedef regex<C1, C2, C3, C4, C5, C6, C7, C8> real_t;
 	template<class Itr>
-	static typename C1::result match(Itr& i) {
+	constexpr static bool match(Itr& i) {
 		return C1::match(i) && regex<C2, C3, C4, C5, C6, C7, C8,
 			Nothing>::match(incr_if<C1>::exec(i));
 	}
-	static const bool incr_after_match = false;
+	static const bool dont_incr = true;
 };
 
 template<>
@@ -368,7 +389,7 @@ struct choices : public parser,
 			|| (i = tmp, choices<C2, C3, C4, C5, C6, C7, C8,
 				Nothing>::match(i));
 	}
-	static const bool incr_after_match = false;
+	static const bool dont_incr = true;
 };
 
 template<>
@@ -479,7 +500,7 @@ struct kleenee : public equal_base<C>, public parser
 #endif
 		return C::match(i) && match(incr_if<C>::exec(i)), true; // TODO: true: a bit inefficient?
 	}
-	static const bool incr_after_match = false;
+	static const bool dont_incr = true;
 };
 
 template<class C>
@@ -490,7 +511,7 @@ struct kleenee_p : public equal_base<C>, public parser
 	constexpr static bool match(Itr& i) {
 		return C::match(i) && kleenee<C>::match(incr_if<C>::exec(i));
 	}
-	static const bool incr_after_match = false;
+	static const bool dont_incr = true;
 };
 
 template<class C>
@@ -501,7 +522,7 @@ struct maybe : public equal_base<C>, public parser
 	constexpr static bool match(Itr& i) {
 		return C::match(i) && (incr_if<C>::exec(i), true), true; // TODO: use incr_if here, too?
 	}
-	static const bool incr_after_match = false;
+	static const bool dont_incr = true;
 };
 
 typedef regex<	raw<'0'>,
@@ -786,13 +807,17 @@ constexpr bool c_assert_match(const char* str, std::size_t digits,
 	const char* itr = NULL) {
 
 	typedef typename mk_action<debugger, Regex>::type ac_regex;
-	static_assert((
+	/*static_assert((
 		itr0 = str,
 		itr = str,
 		ac_regex::match(itr),
 		std::distance(itr0, itr) == digits),
-		"static match failure");
-	return true;
+		"static match failure");*/
+	/*return itr0 = str,
+		itr = str,
+		ac_regex::match(itr),
+		std::distance(itr0, itr) == digits;*/
+		return -(std::size_t)(str - ac_regex::match(str)) == digits;
 }
 
 template<class Regex>
@@ -801,7 +826,7 @@ void assert_match(const char* str) {
 }
 
 template<class Regex>
-constexpr void c_assert_match(const char* str) {
+constexpr bool c_assert_match(const char* str) {
 	return c_assert_match<Regex>(str, strlen(str));
 }
 
