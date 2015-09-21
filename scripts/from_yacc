@@ -1,0 +1,7 @@
+#!/bin/sh
+
+sed 's/\t;$/\t> {};/' | tr [:upper:] [:lower:] \
+	| sed 's/^\t[|:] \(.*\)\( .*\)\{1,2\}$/\t\tregex<\1\2>,/' \
+	| sed 's/^\t[|:] \(.*\)/\t\t\1,/' \
+	| sed "s/\([a-z']\) \([a-z']\)/\1, \2/g" \
+	| sed 's/^\([a-z]\)\(.*\)$/class \1\2 : public\n\tchoices </'

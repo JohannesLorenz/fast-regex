@@ -7,7 +7,8 @@ TEMPLATE = subdirs
 # Directories
 
 
-HEADERS += token.h
+HEADERS += token.h \
+	c_grammar.h
 
 SOURCES += token.cpp \
 	main.cpp

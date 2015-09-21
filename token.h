@@ -30,6 +30,7 @@ enum token_type
 	k_case, k_default, k_if, k_else, k_switch, k_while, k_do, k_for, k_goto, k_continue, k_break, k_return,
 
 	// "simple signs":
+	// braces: {}, parantheses: (), brackets: [], angles: <>
 	semicolon, lbrace,
 	rbrace, comma, colon, eq_sgn, lpar, rpar, lbrack, rbrack,
 	point, and_sgn, excl_mark, tilde, minus, plus, star, slash,
@@ -148,17 +149,34 @@ public:
 //	static const bool dont_incr = true;
 };
 
+/*
 template<char C>
 struct raw : public parser {
 	typedef raw<C> real_t;
+	template<class Itr, class T> // TODO: remove T?
+	constexpr static bool match(const Itr& i, const T&) { return *i == C; }
+};*/
+
+template<class C> struct basic : public parser
+{
+	typedef C real_t;
+	template<class Itr, class T> // TODO: remove T?
+	constexpr static bool match(Itr& i, T& res, Itr start = Itr()) {
+		return (start = i, true) &&
+			C::ok(i),
+			res = T(start, i), true;
+	}
+};
+
+template<char C> struct raw : public basic< raw<C> > {
 	template<class Itr>
-	constexpr static bool match(Itr& i) { return *i == C; }
+	constexpr static bool ok(const Itr& i) { return *i == C; }
 };
 
 //! represents that nothing more is to be parsed.
 struct Nothing : public parser {
-	template<class Itr>
-	constexpr static bool match(Itr& ) {
+	template<class Itr, class T>
+	constexpr static bool match(const Itr&, const T&) {
 #ifdef USE_CPP11
 		return false;
 #else
@@ -310,16 +328,37 @@ struct multiple_base
 template<class C>
 struct equal_base : multiple_base<C> {};
 
+template<class C, class Cur> struct result_of
+{
+};
+
+/*
+template<class C1, class C2, class C3, class C4, class C5, class C6, class C7, class C8,
+	template<class, class, class, class, class, class, class, class> class C,
+	class Cur> struct result_of<C<C1, C2, C3, C4, C5, C6, C7, C8>, Cur>
+{
+	typedef C1::result_of<Cur>::type type;
+};
+*/
+
+
+
+
 template<class C1, class C2=Nothing, class C3=Nothing, class C4=Nothing,
 	class C5=Nothing, class C6=Nothing, class C7=Nothing,
 	class C8=Nothing>
 struct regex : public multiple_base<C1, C2, C3, C4, C5, C6, C7, C8>, parser
 {
 	typedef regex<C1, C2, C3, C4, C5, C6, C7, C8> real_t;
-	template<class Itr>
-	constexpr static bool match(Itr& i) {
-		return C1::match(i) && regex<C2, C3, C4, C5, C6, C7, C8,
-			Nothing>::match(incr_if<C1>::exec(i));
+
+	template<class Itr, class T>
+	// C1<regex>::result: The result from a regex<C1> match
+	constexpr static bool match(Itr& i, T& result,
+		typename T::template result<C1>::type from_c1 = typename T::template result<C1>::type()) {
+		return C1::match(i, from_c1)
+			&& (result.append(from_c1), true)
+			&& regex<C2, C3, C4, C5, C6, C7, C8,
+			Nothing>::match(incr_if<C1>::exec(i), result);
 	}
 	static const bool dont_incr = true;
 };
@@ -328,8 +367,8 @@ template<>
 struct regex<Nothing, Nothing, Nothing, Nothing, Nothing, Nothing,
 	Nothing, Nothing> : public parser
 {
-	template<class Itr>
-	constexpr static bool match(const Itr& ) {
+	template<class Itr, class T>
+	constexpr static bool match(const Itr& , const T&) {
 		return true;
 	}
 };
@@ -790,7 +829,8 @@ void assert_match(const char* str, std::size_t digits) {
 	std::string s = str;
 	std::string::const_iterator itr0 = s.begin(), itr = s.begin();
 	
-	typedef typename mk_action<debugger, Regex>::type ac_regex;
+	//typedef typename mk_action<debugger, Regex>::type ac_regex;
+	typedef Regex ac_regex;
 	ac_regex::match(itr);
 	
 	if(std::distance(itr0, itr) != digits)
@@ -830,8 +870,33 @@ constexpr bool c_assert_match(const char* str) {
 	return c_assert_match<Regex>(str, strlen(str));
 }
 
+class result_test : public
+	regex< raw<'a'>, raw<'b'> > {};
+
+struct _char
+{
+	char c;
+public:
+	operator char() const { return c; }
+	_char() {}
+	template<class Itr>
+	_char(Itr& i1, Itr&) { c = *i1; }
+};
+
+struct string_res
+{
+	std::string res;
+	template<class T> struct result {
+		typedef _char type;
+	};
+	void append(char c) {
+		std::cerr << "app: " << c << std::endl;
+		res += c; }
+};
+
 inline void test_regex()
 {
+#if 0
 	assert_match<hex_const>("0xA1");
 	assert_match<hex_const>("0xA1ul");
 	
@@ -845,6 +910,12 @@ inline void test_regex()
 		"int y = ++x % x ^ 1;"
 		"return 0; }\n"
 		);
+#endif
+
+	const char* str = "ab";
+	string_res res;
+	result_test::match(str, res);
+	std::cerr << "my result: " << res.res << std::endl;
 }
 
 class token_map
