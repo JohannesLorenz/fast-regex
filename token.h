@@ -344,7 +344,7 @@ template<class C1, class C2, class C3, class C4, class C5, class C6, class C7, c
 
 
 
-template<class C1, class C2=Nothing, class C3=Nothing, class C4=Nothing,
+template<class C1, class C2, class C3=Nothing, class C4=Nothing,
 	class C5=Nothing, class C6=Nothing, class C7=Nothing,
 	class C8=Nothing>
 struct regex : public multiple_base<C1, C2, C3, C4, C5, C6, C7, C8>, parser
@@ -441,7 +441,7 @@ struct choices<Nothing, Nothing, Nothing, Nothing, Nothing, Nothing,
 	}
 };
 
-template<char C1, char C2=0, char C3=0, char C4=0, char C5=0, char C6=0,
+template<char C1, char C2, char C3=0, char C4=0, char C5=0, char C6=0,
 	char C7=0, char C8=0>
 struct one_of : public parser, public choices_base<raw<C1>, raw<C2>, raw<C3>, raw<C4>,
 	raw<C5>, raw<C6>, raw<C7>, raw<C8> > 
@@ -594,7 +594,7 @@ class r_identifier : public
 		kleenee<r_iscletter>
 	> {};
 
-typedef regex<	one_of<'f', 'F', 'l', 'L'> > r_floatsgn;
+typedef one_of<'f', 'F', 'l', 'L'> r_floatsgn;
 
 class r_float_const : public
 	regex<
