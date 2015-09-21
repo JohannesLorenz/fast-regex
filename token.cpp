@@ -1,6 +1,7 @@
 #include <algorithm>
 #include <iostream>
 #include "token.h"
+#include "c_grammar.h"
 
 /*token_t::token_t()
 {
