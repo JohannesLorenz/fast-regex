@@ -17,6 +17,8 @@
 
 enum token_type
 {
+	no_token, // an invalid token, like \0 in strings
+
 	identifier, constant, string_literal, k_sizeof,
 	ptr_op, inc_op, dec_op, left_op, right_op, le_op, ge_op, eq_op, ne_op,
 	and_op, or_op, mul_assign, div_assign, mod_assign, add_assign,
@@ -36,7 +38,7 @@ enum token_type
 	point, and_sgn, excl_mark, tilde, minus, plus, star, slash,
 	percent, langle, rangle, circ, pipe, qu_mark, whitespace,
 
-	none
+	none // TODO: deprecated?
 };
 
 class token_t
@@ -274,7 +276,7 @@ template<class A> struct mk_action<A, Nothing> {
 template<typename T>
 class detect_dont_incr
 {
-	struct fallback { int dont_incr; }; // add member name "X"
+	struct fallback { int dont_incr; }; // add member name "dont_incr"
 	struct derived : T, fallback { };
 
 	template<typename U, U> struct check;
@@ -349,12 +351,25 @@ template<class C1, class C2, class C3=Nothing, class C4=Nothing,
 	class C8=Nothing>
 struct regex : public multiple_base<C1, C2, C3, C4, C5, C6, C7, C8>, parser
 {
+	template<class Itr, class T, class T2>
+	// C1<regex>::result: The result from a regex<C1> match
+	constexpr static bool match_typed(Itr& i, T& result,
+		typename T::template result<C1>::type from_c1 = typename T::template result<C1>::type()) {
+		//typename T::template result<>
+		return C1::match(i, from_c1)
+			&& (result.append(from_c1), true)
+			&& regex<C2, C3, C4, C5, C6, C7, C8,
+			Nothing>::match(incr_if<C1>::exec(i), result);
+	}
+
+public:
 	typedef regex<C1, C2, C3, C4, C5, C6, C7, C8> real_t;
 
 	template<class Itr, class T>
 	// C1<regex>::result: The result from a regex<C1> match
 	constexpr static bool match(Itr& i, T& result,
 		typename T::template result<C1>::type from_c1 = typename T::template result<C1>::type()) {
+		//typename T::template result<>
 		return C1::match(i, from_c1)
 			&& (result.append(from_c1), true)
 			&& regex<C2, C3, C4, C5, C6, C7, C8,
@@ -603,23 +618,14 @@ class r_float_const : public
 		maybe<r_floatsgn>
 	> {};
 
-#if 1
-/*typedef*/ class r_float_const_2 :
+class r_float_const_2 :
 	public regex<
 		kleenee<r_isdigit>,
 		raw<'.'>,
 		kleenee_p<r_isdigit>,
 		maybe<r_exp_part>,
 		maybe<r_floatsgn>
-	> /*r_float_const_2*/ {};
-	#else
-typedef regex<	kleenee<r_isdigit>,
-		raw<'.'>,
-		kleenee_p<r_isdigit>,
-		maybe<r_exp_part>,
-		maybe<r_floatsgn>
-	> r_float_const_2;
-#endif
+	> {};
 
 class r_float_const_3 : public
 	regex<
@@ -807,7 +813,7 @@ class c_file_poss : public
 		c_other
 	> {};
 
-class c_file : public kleenee< c_file_poss > {};
+class c99_file : public kleenee< c_file_poss > {};
 
 class debugger {
 public:
@@ -873,6 +879,7 @@ constexpr bool c_assert_match(const char* str) {
 class result_test : public
 	regex< raw<'a'>, raw<'b'> > {};
 
+//! iterator-pair-constructible char
 struct _char
 {
 	char c;
@@ -883,12 +890,26 @@ public:
 	_char(Itr& i1, Itr&) { c = *i1; }
 };
 
+#if 0
+template<class T>
+struct my_result {
+	typedef _char type;
+}
+
+template<>
+struct my_result<result<one_of, raw> >
+{
+
+}
+#endif
 struct string_res
 {
 	std::string res;
 	template<class T> struct result {
 		typedef _char type;
 	};
+	
+
 	void append(char c) {
 		std::cerr << "app: " << c << std::endl;
 		res += c; }
@@ -905,7 +926,7 @@ inline void test_regex()
 	assert_match<r_float_const_2>(".52e+f");
 	assert_match<r_float_const_2>(".52f");
 
-	assert_match<c_file>("int main() {\n"
+	assert_match<c99_file>("int main() {\n"
 		"int x = 0;"
 		"int y = ++x % x ^ 1;"
 		"return 0; }\n"
