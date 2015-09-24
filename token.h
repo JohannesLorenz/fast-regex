@@ -35,8 +35,8 @@ enum token_type
 	// braces: {}, parantheses: (), brackets: [], angles: <>
 	semicolon, lbrace,
 	rbrace, comma, colon, eq_sgn, lpar, rpar, lbrack, rbrack,
-	point, and_sgn, excl_mark, tilde, minus, plus, star, slash,
-	percent, langle, rangle, circ, pipe, qu_mark, whitespace,
+	point, and_sgn, excl_mark, tilde, minus_sgn, plus_sgn, star, slash,
+	percent, langle, rangle, circ, vbar, qu_mark, whitespace,
 
 	none // TODO: deprecated?
 };
@@ -88,7 +88,8 @@ public:
 		type(type)
 	{
 	}
-
+	
+	virtual ~token_reader_base() {} // TODO: = 0?
 };
 
 class token_reader : public token_reader_base
@@ -112,6 +113,8 @@ public:
 /*	bool eq(const char* s) { bool match = !strncmp(*recent_start, s, strlen(s));
 		if(match) recent_end = recent_start + strlen(s);
 	}*/
+
+	virtual ~token_reader() {} // TODO: = 0?
 };
 
 template<class R>
@@ -213,7 +216,7 @@ protected:
 	{
 		// if the child matched, "collect" it, then reach it up
 		// to the next level
-		return tmp = Child::match(i) && (A::template collect(tmp, ct), true);
+		return tmp = Child::match(i) && (A::collect(tmp, ct), true);
 	}
 };
 
@@ -782,8 +785,8 @@ class c_other_5 : public
 		tok_str<and_sgn, '&'>,
 		tok_str<excl_mark, '!'>,
 		tok_str<tilde, '~'>,
-		tok_str<minus, '-'>,
-		tok_str<plus, '+'>,
+		tok_str<minus_sgn, '-'>,
+		tok_str<plus_sgn, '+'>,
 		tok_str<star, '*'>,
 		tok_str<slash, '/'>
 	> {};
@@ -794,7 +797,7 @@ class c_other_6 : public
 		tok_str<langle, '<'>,
 		tok_str<rangle, '>'>,
 		tok_str<circ, '^'>,
-		tok_str<pipe, '|'>,
+		tok_str<vbar, '|'>,
 		tok_str<qu_mark, '?'>,
 		tok_regex<whitespace, one_of<' ', '\t', '\v', '\n', '\f'> >
 	> {};

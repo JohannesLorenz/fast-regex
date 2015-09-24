@@ -92,8 +92,8 @@ class unary_operator : public
 	one_of <
 		and_sgn,
 		star,
-		plus,
-		minus,
+		plus_sgn,
+		minus_sgn,
 		tilde,
 		excl_mark
 	> {};
@@ -115,8 +115,8 @@ class multiplicative_expression : public
 class additive_expression : public
 	choices <
 		multiplicative_expression,
-		regex<additive_expression, raw<plus>, multiplicative_expression>,
-		regex<additive_expression, raw<minus>, multiplicative_expression>
+		regex<additive_expression, raw<plus_sgn>, multiplicative_expression>,
+		regex<additive_expression, raw<minus_sgn>, multiplicative_expression>
 	> {};
 
 class shift_expression : public
@@ -157,7 +157,7 @@ class exclusive_or_expression : public
 class inclusive_or_expression : public
 	choices <
 		exclusive_or_expression,
-		regex<inclusive_or_expression, raw<pipe>, exclusive_or_expression>
+		regex<inclusive_or_expression, raw<vbar>, exclusive_or_expression>
 	> {};
 
 class logical_and_expression : public
