@@ -354,7 +354,9 @@ struct regex : public multiple_base<C1, C2, C3, C4, C5, C6, C7, C8>, parser
 	template<class Itr, class T, class T2>
 	// C1<regex>::result: The result from a regex<C1> match
 	constexpr static bool match_typed(Itr& i, T& result,
-		typename T::template result<C1>::type from_c1 = typename T::template result<C1>::type()) {
+		T2 from_c1) // TODO: is copy by value good?
+		//typename T::template result<C1>::type from_c1 = typename T::template result<C1>::type()) {
+		{
 		//typename T::template result<>
 		return C1::match(i, from_c1)
 			&& (result.append(from_c1), true)
@@ -367,13 +369,14 @@ public:
 
 	template<class Itr, class T>
 	// C1<regex>::result: The result from a regex<C1> match
-	constexpr static bool match(Itr& i, T& result,
-		typename T::template result<C1>::type from_c1 = typename T::template result<C1>::type()) {
+	constexpr static bool match(Itr& i, T& result, C1 c1 = C1()
+		) {
+		return match_typed(i, result, T::mk_result(c1));
 		//typename T::template result<>
-		return C1::match(i, from_c1)
+		/*return C1::match(i, from_c1)
 			&& (result.append(from_c1), true)
 			&& regex<C2, C3, C4, C5, C6, C7, C8,
-			Nothing>::match(incr_if<C1>::exec(i), result);
+			Nothing>::match(incr_if<C1>::exec(i), result);*/
 	}
 	static const bool dont_incr = true;
 };
@@ -908,6 +911,9 @@ struct string_res
 	template<class T> struct result {
 		typedef _char type;
 	};
+
+	template<char C>
+	static _char mk_result(const raw<C>& ) { return _char(); }
 	
 
 	void append(char c) {
