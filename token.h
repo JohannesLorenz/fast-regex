@@ -154,6 +154,15 @@ public:
 //	static const bool dont_incr = true;
 };
 
+template<bool Result>
+struct match_const : public parser
+{
+	template<class Itr, class R>
+	constexpr static bool match(const Itr& , const R& ) {
+		return Result;
+	}
+};
+
 /*
 template<char C>
 struct raw : public parser {
@@ -362,9 +371,11 @@ struct regex : public multiple_base<C1, C2, C3, C4, C5, C6, C7, C8>, parser
 		{
 		//typename T::template result<>
 		return C1::match(i, from_c1)
-			&& (result.append(from_c1), true)
-			&& regex<C2, C3, C4, C5, C6, C7, C8,
-			Nothing>::match(incr_if<C1>::exec(i), result);
+			&& (
+			result.append(from_c1),
+			regex<C2, C3, C4, C5, C6, C7, C8,
+			Nothing>::match(incr_if<C1>::exec(i), result)
+			);
 	}
 
 public:
@@ -372,9 +383,8 @@ public:
 
 	template<class Itr, class T>
 	// C1<regex>::result: The result from a regex<C1> match
-	constexpr static bool match(Itr& i, T& result, C1 c1 = C1()
-		) {
-		return match_typed(i, result, T::mk_result(c1));
+	constexpr static bool match(Itr& i, T& result) {
+		return match_typed(i, result, T::mk_result(C1()));
 		//typename T::template result<>
 		/*return C1::match(i, from_c1)
 			&& (result.append(from_c1), true)
@@ -386,13 +396,7 @@ public:
 
 template<>
 struct regex<Nothing, Nothing, Nothing, Nothing, Nothing, Nothing,
-	Nothing, Nothing> : public parser
-{
-	template<class Itr, class T>
-	constexpr static bool match(const Itr& , const T&) {
-		return true;
-	}
-};
+	Nothing, Nothing> : public match_const<true> {};
 
 template<char C> struct to_raw { typedef raw<C> type; };
 template<> struct to_raw<0> { typedef Nothing type; };
@@ -454,13 +458,7 @@ struct choices : public parser,
 
 template<>
 struct choices<Nothing, Nothing, Nothing, Nothing, Nothing, Nothing,
-	Nothing, Nothing> : public parser
-{
-	template<class Itr>
-	constexpr static bool match(const Itr& ) {
-		return false;
-	}
-};
+	Nothing, Nothing> : public match_const<false> {};
 
 template<char C1, char C2, char C3=0, char C4=0, char C5=0, char C6=0,
 	char C7=0, char C8=0>
@@ -468,21 +466,15 @@ struct one_of : public parser, public choices_base<raw<C1>, raw<C2>, raw<C3>, ra
 	raw<C5>, raw<C6>, raw<C7>, raw<C8> > 
 {
 	typedef one_of<C1, C2, C3, C4, C5, C6, C7, C8> real_t;
-	template<class Itr>
-	constexpr static bool match(Itr& i) {
-		return raw<C1>::match(i) || one_of<C2, C3, C4, C5, C6, C7, C8,
-			0>::match(i);
+	template<class Itr, class R>
+	constexpr static bool match(Itr& i, R& res) {
+		return raw<C1>::match(i, res) || one_of<C2, C3, C4, C5, C6, C7, C8,
+			0>::match(i, res);
 	}
 };
 
 template<>
-struct one_of<0,0,0,0,0,0,0,0> : public parser
-{
-	template<class Itr>
-	constexpr static bool match(const Itr& ) {
-		return false;
-	}
-};
+struct one_of<0,0,0,0,0,0,0,0> : public match_const<false> {};
 
 inline constexpr bool c_isdigit(const char c) {
 	return c >= '0' && c <= '9';
@@ -550,59 +542,82 @@ struct r_iscletter1 : public parser
 };
 
 template<class C>
-struct kleenee : public equal_base<C>, public parser
+class kleene : public equal_base<C>, public parser
 {
-	typedef kleenee<C> real_t;
-	template<class Itr>
-	constexpr static bool match(Itr& i) {
+	template<class Itr, class R, class T2>
+	constexpr static bool match_typed(Itr& i, R& result, T2 from_c1)
+	{
+		return C::match(i) &&
+			(result.append(from_c1),
+			match(incr_if<C>::exec(i)), true); // TODO: true: a bit inefficient?
+	}
+public:
+	typedef kleene<C> real_t;
+	
+	template<class Itr, class R>
+	constexpr static bool match(Itr& i, R& result) {
 #ifndef USE_CPP11
 		std::cerr << "at: " << (*i) << std::endl;
 #endif
-		return C::match(i) && match(incr_if<C>::exec(i)), true; // TODO: true: a bit inefficient?
+		return match_typed(i, result, R::mk_result(C()));
 	}
 	static const bool dont_incr = true;
 };
 
 template<class C>
-struct kleenee_p : public equal_base<C>, public parser
+class kleene_p : public equal_base<C>, public parser
 {
-	typedef kleenee_p<C> real_t;
-	template<class Itr>
-	constexpr static bool match(Itr& i) {
-		return C::match(i) && kleenee<C>::match(incr_if<C>::exec(i));
+	template<class Itr, class R, class R2>
+	constexpr static bool match(Itr& i, R& result, R2 from_c1) {
+		return C::match(i) &&
+			(result.append(from_c1),
+			kleene<C>::match(incr_if<C>::exec(i)));
+	}
+public:
+	typedef kleene_p<C> real_t;
+	template<class Itr, class R>
+	constexpr static bool match(Itr& i, R& result) {
+		return match(i, result, R::mk_result(C()));
 	}
 	static const bool dont_incr = true;
 };
 
 template<class C>
-struct maybe : public equal_base<C>, public parser
+class maybe : public equal_base<C>, public parser
 {
+	template<class Itr, class R, class R2>
+	constexpr static bool match(Itr& i, R& result, R2 from_c1) {
+		return C::match(i) &&
+			(result.append(from_c1),
+			(incr_if<C>::exec(i), true), true); // TODO: use incr_if here, too?
+	}
+public:
 	typedef maybe<C> real_t;
-	template<class Itr>
-	constexpr static bool match(Itr& i) {
-		return C::match(i) && (incr_if<C>::exec(i), true), true; // TODO: use incr_if here, too?
+	template<class Itr, class R>
+	constexpr static bool match(Itr& i, R& result) {
+		return match(i, result, R::mk_result(C()));
 	}
 	static const bool dont_incr = true;
 };
 
 typedef regex<	raw<'0'>,
 		one_of<'x', 'X'>,
-		kleenee_p<r_isxdigit>,
-		kleenee<r_isintsgn>
+		kleene_p<r_isxdigit>,
+		kleene<r_isintsgn>
 	> hex_const;
 	
 typedef regex<	raw<'0'>,
-		kleenee_p<r_isdigit>,
-		kleenee<r_isintsgn>
+		kleene_p<r_isdigit>,
+		kleene<r_isintsgn>
 	> r_oct_const;
 
-typedef regex<	kleenee_p<r_isdigit>,
-		kleenee<r_isintsgn>
+typedef regex<	kleene_p<r_isdigit>,
+		kleene<r_isintsgn>
 	> r_dec_const;
 
 typedef regex<	maybe< raw<'L'> >,
 		raw<'\''>,
-		kleenee_p< r_isnot<'\''> >,
+		kleene_p< r_isnot<'\''> >,
 		raw<'\''>
 	> r_char_const;
 
@@ -612,32 +627,32 @@ typedef regex<	one_of<'e', 'E'>,
 
 class r_identifier : public
 	regex<	r_iscletter1,
-		kleenee<r_iscletter>
+		kleene<r_iscletter>
 	> {};
 
 typedef one_of<'f', 'F', 'l', 'L'> r_floatsgn;
 
 class r_float_const : public
 	regex<
-		kleenee_p<r_isdigit>,
+		kleene_p<r_isdigit>,
 		r_exp_part,
 		maybe<r_floatsgn>
 	> {};
 
 class r_float_const_2 :
 	public regex<
-		kleenee<r_isdigit>,
+		kleene<r_isdigit>,
 		raw<'.'>,
-		kleenee_p<r_isdigit>,
+		kleene_p<r_isdigit>,
 		maybe<r_exp_part>,
 		maybe<r_floatsgn>
 	> {};
 
 class r_float_const_3 : public
 	regex<
-		kleenee_p<r_isdigit>,
+		kleene_p<r_isdigit>,
 		raw<'.'>,
-		kleenee<r_isdigit>,
+		kleene<r_isdigit>,
 		maybe<r_exp_part>,
 		maybe<r_floatsgn>
 	> {};
@@ -645,7 +660,7 @@ class r_float_const_3 : public
 class r_string_literal : public
 	regex<	maybe< raw<'L'> >,
 		raw<'"'>,
-		kleenee_p< r_isnot<'"'> >,
+		kleene_p< r_isnot<'"'> >,
 		raw<'"'>
 	> {};
 
@@ -819,33 +834,46 @@ class c_file_poss : public
 		c_other
 	> {};
 
-class c99_file : public kleenee< c_file_poss > {};
+class c99_file : public kleene< c_file_poss > {};
 
 class debugger {
 public:
 	template<class T, class C1, class C2, class C3, class C4, class C5, class C6, class C7, class C8>
 	static void collect(const T&, const multiple_base<C1, C2, C3, C4, C5, C6, C7, C8>* ) {
-		std::cerr << "collecting kleenee: " << "?" << std::endl;
+		std::cerr << "collecting kleene: " << "?" << std::endl;
 	}
 	template<class T, class C1, class C2, class C3, class C4, class C5, class C6, class C7, class C8>
 	static void collect(const T&, const choices_base<C1, C2, C3, C4, C5, C6, C7, C8>* ) {
-		std::cerr << "collecting kleenee: " << "?" << std::endl;
+		std::cerr << "collecting kleene: " << "?" << std::endl;
 	}
 
 public:
 	typedef bool result;
 };
 
-template<class Regex>
+struct parse
+{
+	template<class T>
+	static parse mk_result(const T& ) { return parse(); }
+
+	template<class Itr1, class Itr2>
+	parse(const Itr1&, const Itr2& ) {}
+	parse() {}
+
+	void append(const parse& ) const {}
+};
+
+template<class Regex, class Result>
 void assert_match(const char* str, std::size_t digits) {
 	std::string s = str;
 	std::string::const_iterator itr0 = s.begin(), itr = s.begin();
 	
 	//typedef typename mk_action<debugger, Regex>::type ac_regex;
 	typedef Regex ac_regex;
-	ac_regex::match(itr);
+	Result res;
+	ac_regex::match(itr, res);
 	
-	if(std::distance(itr0, itr) != digits)
+	if((std::size_t)std::distance(itr0, itr) != digits)
 	{
 		std::cerr << std::distance(itr0, itr) << std::endl;
 		std::cerr << "at: " << (&*itr) << std::endl;
@@ -872,9 +900,9 @@ constexpr bool c_assert_match(const char* str, std::size_t digits,
 		return -(std::size_t)(str - ac_regex::match(str)) == digits;
 }
 
-template<class Regex>
+template<class Regex, class Result>
 void assert_match(const char* str) {
-	assert_match<Regex>(str, strlen(str));
+	assert_match<Regex, Result>(str, strlen(str));
 }
 
 template<class Regex>
@@ -883,7 +911,7 @@ constexpr bool c_assert_match(const char* str) {
 }
 
 class result_test : public
-	regex< raw<'a'>, raw<'b'> > {};
+	regex< regex< raw<'a'>, raw<'c'> >, raw<'b'> > {};
 
 //! iterator-pair-constructible char
 struct _char
@@ -908,12 +936,40 @@ struct my_result<result<one_of, raw> >
 
 }
 #endif
+
 struct string_res
 {
 	std::string res;
 	template<class T> struct result {
 		typedef _char type;
 	};
+
+	// TODO: sfinae-get return value of function?
+	
+	template<char C>
+	static _char mk_result(const raw<C>& ) { return _char(); }
+
+	// all other nodes, i.e. containers
+	template<class T>
+	static string_res mk_result(const T& ) { return string_res(); }
+	
+
+	void append(char c) {
+		std::cerr << "app: " << c << std::endl;
+		res += c; }
+
+	void append(const string_res& s) {
+		std::cerr << "app: " << s.res << std::endl;
+		res += s.res; }
+};
+
+#if 0
+struct tokenizer_res
+{
+	std::string res;
+	/*template<class T> struct result {
+		typedef _char type;
+	};*/
 
 	template<char C>
 	static _char mk_result(const raw<C>& ) { return _char(); }
@@ -923,26 +979,28 @@ struct string_res
 		std::cerr << "app: " << c << std::endl;
 		res += c; }
 };
+#endif
 
 inline void test_regex()
 {
+#if 1
+	assert_match<hex_const, parse>("0xA1");
+	assert_match<hex_const, parse>("0xA1ul");
+#endif
 #if 0
-	assert_match<hex_const>("0xA1");
-	assert_match<hex_const>("0xA1ul");
-	
-	assert_match<r_string_literal>("L\"hello\""); // TODO: \" ?
+	assert_match<r_string_literal, parse>("L\"hello\""); // TODO: \" ?
 
-	assert_match<r_float_const_2>(".52e+f");
-	assert_match<r_float_const_2>(".52f");
+	assert_match<r_float_const_2, parse>(".52e+f");
+	assert_match<r_float_const_2, parse>(".52f");
 
-	assert_match<c99_file>("int main() {\n"
+	assert_match<c99_file, parse>("int main() {\n"
 		"int x = 0;"
 		"int y = ++x % x ^ 1;"
 		"return 0; }\n"
 		);
 #endif
 
-	const char* str = "ab";
+	const char* str = "acb";
 	string_res res;
 	result_test::match(str, res);
 	std::cerr << "my result: " << res.res << std::endl;
