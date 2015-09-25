@@ -423,9 +423,9 @@ class str : public parser
 public:
 	typedef str<C1, C2, C3, C4, C5, C6, C7, C8> real_t;
 	//typedef base real_t;
-	template<class Itr>
-	constexpr static bool match(Itr& i) {
-		return !strncmp(&*i, match_str, sz);
+	template<class Itr, class R>
+	constexpr static bool match(Itr& i, R& res) {
+		return !strncmp(&*i, match_str, sz); // TODO: std functions?
 	}
 };
 
@@ -450,7 +450,7 @@ struct choices : public parser,
 
 	template<class Itr, class R, class R2>
 	constexpr static bool match(Itr& i, R& res, R2 from_c1, Itr tmp = Itr()) {
-		return (tmp=i, C1::match(i, res) && (res.append(C1()), incr_if<C1>::exec(i), true))
+		return (tmp=i, C1::match(i, res) && (res.append(from_c1), incr_if<C1>::exec(i), true))
 			|| (i = tmp, choices<C2, C3, C4, C5, C6, C7, C8,
 				Nothing>::match(i, res));
 	}
@@ -502,7 +502,7 @@ inline constexpr bool c_isxdigit(const char c) {
 	}
 };*/
 
-template<char C> struct r_isxdigit : public basic< raw<C> > {
+struct r_isxdigit : public basic<r_isxdigit> {
 	template<class Itr>
 	constexpr static bool ok(const Itr& i) { return c_isxdigit(*i); }
 };
@@ -516,7 +516,7 @@ template<char C> struct r_isxdigit : public basic< raw<C> > {
 	}
 };*/
 
-struct r_isdigit : public basic< r_isdigit > {
+struct r_isdigit : public basic<r_isdigit> {
 	template<class Itr>
 	constexpr static bool ok(const Itr& i) { return c_isdigit(*i); }
 };
@@ -530,7 +530,7 @@ struct r_isdigit : public basic< r_isdigit > {
 	}
 };*/
 
-template<char C> struct r_isintsgn : public basic< raw<C> > {
+struct r_isintsgn : public basic<r_isintsgn> {
 	template<class Itr>
 	constexpr static bool ok(const Itr& i) {
 		return *i == 'u' || *i == 'U' || *i == 'l' || *i == 'L'; // TODO: 4 indirections?
@@ -565,7 +565,29 @@ struct r_iscletter1 : public parser
 	}
 };*/
 
+template<char C>
+struct r_isnot : public basic< r_isnot<C> > {
+	template<class Itr>
+	constexpr static bool ok(const Itr& i) {
+		return *i != C;
+	}
+};
 
+struct r_iscletter : public basic<r_iscletter>
+{
+	template<class Itr>
+	constexpr static bool ok(const Itr& i) {
+		return *i == '_' || (bool)isalnum(*i);
+	}
+};
+
+struct r_iscletter1 : public basic<r_iscletter1>
+{
+	template<class Itr>
+	constexpr static bool ok(const Itr& i) {
+		return *i == '_' || (bool)isalpha(*i);
+	}
+};
 
 template<class C>
 class kleene : public equal_base<C>, public parser
@@ -595,7 +617,7 @@ class kleene_p : public equal_base<C>, public parser
 {
 	template<class Itr, class R, class R2>
 	constexpr static bool match(Itr& i, R& result, R2 from_c1) {
-		return C::match(i) &&
+		return C::match(i, result) &&
 			(result.append(from_c1),
 			kleene<C>::match(incr_if<C>::exec(i), result));
 	}
