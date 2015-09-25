@@ -176,9 +176,9 @@ template<class C> struct basic : public parser
 	typedef C real_t;
 	template<class Itr, class T> // TODO: remove T?
 	constexpr static bool match(Itr& i, T& res, Itr start = Itr()) {
-		return (start = i, true) &&
-			C::ok(i),
-			res = T(start, i), true;
+		return	start = i,
+			(C::ok(i) &&
+			(res = T(start, i), true));
 	}
 };
 
@@ -549,7 +549,7 @@ class kleene : public equal_base<C>, public parser
 	{
 		return C::match(i) &&
 			(result.append(from_c1),
-			match(incr_if<C>::exec(i)), true); // TODO: true: a bit inefficient?
+			match(incr_if<C>::exec(i), result)), true; // TODO: true: a bit inefficient?
 	}
 public:
 	typedef kleene<C> real_t;
@@ -571,7 +571,7 @@ class kleene_p : public equal_base<C>, public parser
 	constexpr static bool match(Itr& i, R& result, R2 from_c1) {
 		return C::match(i) &&
 			(result.append(from_c1),
-			kleene<C>::match(incr_if<C>::exec(i)));
+			kleene<C>::match(incr_if<C>::exec(i), result));
 	}
 public:
 	typedef kleene_p<C> real_t;
@@ -587,9 +587,9 @@ class maybe : public equal_base<C>, public parser
 {
 	template<class Itr, class R, class R2>
 	constexpr static bool match(Itr& i, R& result, R2 from_c1) {
-		return C::match(i) &&
+		return C::match(i, result) &&
 			(result.append(from_c1),
-			(incr_if<C>::exec(i), true), true); // TODO: use incr_if here, too?
+			incr_if<C>::exec(i), true), true; // TODO: use incr_if here, too?
 	}
 public:
 	typedef maybe<C> real_t;
@@ -871,7 +871,8 @@ void assert_match(const char* str, std::size_t digits) {
 	//typedef typename mk_action<debugger, Regex>::type ac_regex;
 	typedef Regex ac_regex;
 	Result res;
-	ac_regex::match(itr, res);
+	if(! ac_regex::match(itr, res) )
+	 std::cerr << "WARNING: did not match..." << std::endl;
 	
 	if((std::size_t)std::distance(itr0, itr) != digits)
 	{
@@ -983,16 +984,14 @@ struct tokenizer_res
 
 inline void test_regex()
 {
-#if 1
 	assert_match<hex_const, parse>("0xA1");
 	assert_match<hex_const, parse>("0xA1ul");
-#endif
-#if 0
+
 	assert_match<r_string_literal, parse>("L\"hello\""); // TODO: \" ?
 
 	assert_match<r_float_const_2, parse>(".52e+f");
 	assert_match<r_float_const_2, parse>(".52f");
-
+#if 0
 	assert_match<c99_file, parse>("int main() {\n"
 		"int x = 0;"
 		"int y = ++x % x ^ 1;"
