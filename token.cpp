@@ -3,6 +3,7 @@
 #include "token.h"
 #include "c_grammar.h"
 
+<<<<<<< HEAD
 /*************************************************************************/
 /* cparser - a C++03, template based parser                              */
 /* Copyright (C) 2015-2015                                               */
@@ -22,7 +23,15 @@
 /* Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110, USA  */
 /*************************************************************************/
 
-/*std::ostream& token_t::dump(std::ostream& stream, const std::string& file) {
+// static members
+std::vector<char> token_vector::v;
+
+/*token_t::token_t()
+{
+}*/
+/*
+std::ostream& token_t::dump(std::ostream& stream, const std::string& file) {
+>>>>>>> cbd9df41e41555a69f91ede853b1c48dd5a454da
 	std::string substr;
 	std::copy(_begin, _end, std::back_inserter(substr));
 	return stream << substr << *this;
