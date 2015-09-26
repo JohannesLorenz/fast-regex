@@ -3,6 +3,7 @@
 
 #include "token.h"
 
+// TODO: forward header?
 class expression;
 class argument_expression_list;
 class assignment_expression;
