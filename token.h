@@ -1,3 +1,22 @@
+/*************************************************************************/
+/* cparser - a C++03, template based parser                              */
+/* Copyright (C) 2015-2015                                               */
+/* Johannes Lorenz (jlsf2013 @ sourceforge)                              */
+/*                                                                       */
+/* This program is free software; you can redistribute it and/or modify  */
+/* it under the terms of the GNU General Public License as published by  */
+/* the Free Software Foundation; either version 3 of the License, or (at */
+/* your option) any later version.                                       */
+/* This program is distributed in the hope that it will be useful, but   */
+/* WITHOUT ANY WARRANTY; without even the implied warranty of            */
+/* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU      */
+/* General Public License for more details.                              */
+/*                                                                       */
+/* You should have received a copy of the GNU General Public License     */
+/* along with this program; if not, write to the Free Software           */
+/* Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110, USA  */
+/*************************************************************************/
+
 #ifndef TOKEN_H
 #define TOKEN_H
 
@@ -66,69 +85,6 @@ public:
 inline std::ostream& operator<<(std::ostream& o, token_t& t) {
 	return o << "(token_id:) " << (int)t.type;
 }
-
-class token_reader_base
-{
-	token_type type;
-protected:
-	typedef std::string::const_iterator iterator;
-public:
-	static token_t invalid(const std::string::const_iterator& i) {
-		return token_t(none, i, i);
-	}
-	token_t matches(const std::string& s, iterator i) const {
-		iterator start = i;
-		bool ok = match(i);
-		if(!ok)
-		 return invalid(i);
-		else
-		 return token_t(type, start, i);
-	}
-	virtual bool match(iterator& i) const = 0;
-
-	token_reader_base(token_type type) :
-		type(type)
-	{
-	}
-	
-	virtual ~token_reader_base() {} // TODO: = 0?
-};
-
-class token_reader : public token_reader_base
-{
-	const char* match_str;
-private:
-	virtual bool match(iterator& i) const {
-		std::size_t len = strlen(match_str);
-		if(!strncmp(&*i, match_str, len)) // TODO: virtual...
-			return i+=len, true;
-		else
-			return false; // TODO: if-else not needed
-	
-	}
-public:
-	token_reader(const char* match_str, token_type type) :
-		token_reader_base(type),
-		match_str(match_str)
-	{
-	}
-/*	bool eq(const char* s) { bool match = !strncmp(*recent_start, s, strlen(s));
-		if(match) recent_end = recent_start + strlen(s);
-	}*/
-
-	virtual ~token_reader() {} // TODO: = 0?
-};
-
-template<class R>
-class token_reader_r : public token_reader_base
-{
-	virtual bool match(iterator& i) const {
-		return R::match(i);
-	}
-public:
-	token_reader_r(token_type type) :
-		token_reader_base(type) {}
-};
 
 template<class T>
 class bool_base
@@ -495,42 +451,15 @@ inline constexpr bool c_isxdigit(const char c) {
 		|| (c >= 'a' && c <= 'f');
 }
 
-/*struct r_isxdigit : public parser
-{
-	typedef r_isxdigit real_t;
-	template<class Itr>
-	constexpr static bool match(const Itr& i) {
-		return c_isxdigit(*i);
-	}
-};*/
-
 struct r_isxdigit : public basic<r_isxdigit> {
 	template<class Itr>
 	constexpr static bool ok(const Itr& i) { return c_isxdigit(*i); }
 };
 
-/*struct r_isdigit : public parser
-{
-	typedef r_isdigit real_t;
-	template<class Itr>
-	constexpr static bool match(const Itr& i) {
-		return c_isdigit(*i);
-	}
-};*/
-
 struct r_isdigit : public basic<r_isdigit> {
 	template<class Itr>
 	constexpr static bool ok(const Itr& i) { return c_isdigit(*i); }
 };
-
-/*struct r_isintsgn : public parser
-{
-	typedef r_isintsgn real_t;
-	template<class Itr>
-	constexpr static bool match(const Itr& c) {
-		return *c == 'u' || *c == 'U' || *c == 'l' || *c == 'L'; // TODO: 4 indirections?
-	}
-};*/
 
 struct r_isintsgn : public basic<r_isintsgn> {
 	template<class Itr>
@@ -538,34 +467,6 @@ struct r_isintsgn : public basic<r_isintsgn> {
 		return *i == 'u' || *i == 'U' || *i == 'l' || *i == 'L'; // TODO: 4 indirections?
 	}
 };
-
-/*template<char C>
-struct r_isnot : public parser
-{
-	typedef r_isnot<C> real_t;
-	template<class Itr>
-	constexpr static bool match(const Itr& i) {
-		return *i != C;
-	}
-};
-
-struct r_iscletter : public parser
-{
-	typedef r_iscletter real_t;
-	template<class Itr>
-	constexpr static bool match(const Itr& i) {
-		return *i == '_' || (bool)isalnum(*i);
-	}
-};
-
-struct r_iscletter1 : public parser
-{
-	typedef r_iscletter1 real_t;
-	template<class Itr>
-	constexpr static bool match(const Itr& i) {
-		return *i == '_' || (bool)isalpha(*i);
-	}
-};*/
 
 template<char C>
 struct r_isnot : public basic< r_isnot<C> > {
@@ -1098,38 +999,6 @@ inline void test_regex()
 	result_test::match(str, res);
 	std::cerr << "my result: " << res.res << std::endl;
 }
-
-class token_map
-{
-	void init_tokens();
-	std::vector<token_reader*> tokens;
-	// TODO: use maps
-	void add(const char* match_str, token_type type) {
-		tokens.push_back(new token_reader(match_str, type));
-	}
-public:
-	token_map();
-	token_t apply(const std::string& s, std::string::const_iterator& sitr)
-	{
-		token_t cur = token_reader::invalid(sitr);
-		for(std::vector<token_reader*>::const_iterator itr = tokens.begin();
-			itr != tokens.end() && !cur; ++itr)
-		{
-			cur = (*itr)->matches(s, sitr); // TODO: no braces?
-		}
-		sitr = cur.end();
-		return cur;
-	}
-
-};
-
-class cfile
-{
-	token_map map;
-	std::vector<token_t> _tokens;
-public:
-	cfile(const std::string& content);
-};
 
 #endif // TOKEN_H
 
