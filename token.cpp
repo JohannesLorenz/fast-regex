@@ -3,6 +3,9 @@
 #include "token.h"
 #include "c_grammar.h"
 
+// static members
+std::vector<char> token_vector::v;
+
 /*token_t::token_t()
 {
 }*/

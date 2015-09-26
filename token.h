@@ -19,26 +19,28 @@ enum token_type
 {
 	no_token, // an invalid token, like \0 in strings
 
-	identifier, constant, string_literal, k_sizeof,
-	ptr_op, inc_op, dec_op, left_op, right_op, le_op, ge_op, eq_op, ne_op,
-	and_op, or_op, mul_assign, div_assign, mod_assign, add_assign,
-	sub_assign, left_assign, right_assign, and_assign,
-	xor_assign, or_assign, type_name,
+	identifier, constant, string_literal, k_sizeof, // 1...
+	ptr_op, inc_op, dec_op, left_op, right_op, le_op, ge_op, eq_op, ne_op, // 5
+	and_op, or_op, mul_assign, div_assign, mod_assign, add_assign, // 14
+	sub_assign, left_assign, right_assign, and_assign, // 20
+	xor_assign, or_assign, type_name, // 24
 
-	k_typedef, k_extern, k_static, k_auto, k_register,
-	k_char, k_short, k_int, k_long, k_signed, k_unsigned, k_float, k_double, k_const, k_volatile, k_void,
-	k_struct, k_union, k_enum, ellipsis,
+	k_typedef, k_extern, k_static, k_auto, k_register, // 27
+	k_char, k_short, k_int, k_long, k_signed, k_unsigned, // 32
+	k_float, k_double, k_const, k_volatile, k_void, // 38
+	k_struct, k_union, k_enum, ellipsis, // 43
 
-	k_case, k_default, k_if, k_else, k_switch, k_while, k_do, k_for, k_goto, k_continue, k_break, k_return,
+	k_case, k_default, k_if, k_else, k_switch, // 47
+	k_while, k_do, k_for, k_goto, k_continue, k_break, k_return, // 52
 
 	// "simple signs":
 	// braces: {}, parantheses: (), brackets: [], angles: <>
-	semicolon, lbrace,
-	rbrace, comma, colon, eq_sgn, lpar, rpar, lbrack, rbrack,
-	point, and_sgn, excl_mark, tilde, minus_sgn, plus_sgn, star, slash,
-	percent, langle, rangle, circ, vbar, qu_mark, whitespace,
+	semicolon, lbrace, // 59
+	rbrace, comma, colon, eq_sgn, lpar, rpar, lbrack, rbrack, // 61
+	point, and_sgn, excl_mark, tilde, minus_sgn, plus_sgn, star, slash, // 69
+	percent, langle, rangle, circ, vbar, qu_mark, whitespace, // 77
 
-	none // TODO: deprecated?
+	none // 84 // TODO: deprecated?
 };
 
 class token_t
@@ -450,7 +452,7 @@ struct choices : public parser,
 
 	template<class Itr, class R, class R2>
 	constexpr static bool match(Itr& i, R& res, R2 from_c1, Itr tmp = Itr()) {
-		return (tmp=i, C1::match(i, res) && (res.append(from_c1), incr_if<C1>::exec(i), true))
+		return ((tmp=i, C1::match(i, res) && (res.append(from_c1), incr_if<C1>::exec(i), true)))
 			|| (i = tmp, choices<C2, C3, C4, C5, C6, C7, C8,
 				Nothing>::match(i, res));
 	}
@@ -712,15 +714,17 @@ class r_string_literal : public
 		raw<'"'>
 	> {};
 
+template<token_type Token> class has_token {};
+
 template<token_type Token, char C1, char C2 = 0, char C3 = 0, char C4 = 0,
 	char C5 = 0, char C6 = 0, char C7 = 0, char C8 = 0>
-class tok_str : public str<C1, C2, C3, C4, C5, C6, C7, C8> {}; // TODO: reuse tok_regex?
+class tok_str : public has_token<Token>, public str<C1, C2, C3, C4, C5, C6, C7, C8> {}; // TODO: reuse tok_regex?
 
 template<token_type Token, class C1, class C2 = Nothing,
 	class C3 = Nothing, class C4 = Nothing,
 	class C5 = Nothing, class C6 = Nothing,
 	class C7 = Nothing, class C8 = Nothing>
-class tok_regex : public regex<C1, C2, C3, C4, C5, C6, C7, C8> {};
+class tok_regex : public has_token<Token>, public regex<C1, C2, C3, C4, C5, C6, C7, C8> {};
 
 class c_keywords_1 : public
 	choices <
@@ -781,7 +785,7 @@ class c_keywords : public
 
 class c_constants : public
 	choices<
-		tok_regex<identifier, r_identifier>,
+		tok_regex<identifier, r_identifier>, // TODO: this is no constant
 		tok_regex<constant, choices<
 			hex_const,
 			r_oct_const,
@@ -901,6 +905,7 @@ public:
 
 struct parse
 {
+	//! result of child of type T
 	template<class T>
 	static parse mk_result(const T& ) { return parse(); }
 
@@ -909,7 +914,45 @@ struct parse
 	parse() {}
 
 	void append(const parse& ) const {}
+	friend std::ostream& operator<<(std::ostream& o, parse& p);
 };
+
+inline std::ostream& operator<<(std::ostream& o, parse& ) { return o; }
+
+//! @threadsafe no thread safe (though easily modifiable)
+struct token_vector
+{
+	static std::vector<char> v;
+
+	template<class T>
+	static token_vector mk_result(const T& ) { return token_vector(); }
+
+	template<token_type Tok, char C1, char C2, char C3, char C4, char C5, char C6, char C7, char C8>
+	static token_type mk_result(const tok_str<Tok, C1, C2, C3, C4, C5, C6, C7, C8>& ) { return Tok; }
+
+	template<token_type Tok, class C1, class C2, class C3, class C4, class C5, class C6, class C7, class C8>
+	static token_type mk_result(const tok_regex<Tok, C1, C2, C3, C4, C5, C6, C7, C8>& ) { return Tok; }
+
+	template<class Itr1, class Itr2>
+	token_vector(const Itr1&, const Itr2& ) {}
+	token_vector() {}
+
+	void append(const token_type& tok) const {
+		v.push_back((char)tok);
+	}
+
+	void append(const token_vector& ) const {}
+
+	friend std::ostream& operator<<(std::ostream& o, token_vector& tv);
+};
+
+inline std::ostream& operator<<(std::ostream& o, token_vector& tv)
+{
+	for(std::vector<char>::const_iterator itr = tv.v.begin();
+		itr != tv.v.end(); ++itr)
+			o << +*itr << std::endl;
+	return o;
+}
 
 template<class Regex, class Result>
 void assert_match(const char* str, std::size_t digits) {
@@ -921,6 +964,8 @@ void assert_match(const char* str, std::size_t digits) {
 	Result res;
 	if(! ac_regex::match(itr, res) )
 	 std::cerr << "WARNING: did not match..." << std::endl;
+
+	std::cout << res << std::endl;
 	
 	if((std::size_t)std::distance(itr0, itr) != digits)
 	{
@@ -1045,6 +1090,8 @@ inline void test_regex()
 		"int y = ++x % x ^ 1;"
 		"return 0; }\n"
 		);
+
+	assert_match<c99_file, token_vector>("int ");
 
 	const char* str = "acb";
 	string_res res;
