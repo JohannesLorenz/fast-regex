@@ -7,12 +7,15 @@ TEMPLATE = subdirs
 # Directories
 
 
-HEADERS += token.h \
+HEADERS += \
 	c_grammar.h \
-	c_nodes.h
+	c_nodes.h \
+	parsers.h \
+	c_tokens.h
 
-SOURCES += token.cpp \
-	main.cpp
+SOURCES += \
+	main.cpp \
+	parsers.cpp
 
 OTHER_FILES += Makefile
 

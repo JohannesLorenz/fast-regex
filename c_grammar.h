@@ -20,7 +20,7 @@
 #ifndef C_GRAMMAR_H
 #define C_GRAMMAR_H
 
-#include "token.h"
+#include "c_tokens.h"
 
 // TODO: forward header?
 class expression;
