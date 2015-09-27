@@ -20,12 +20,10 @@
 #ifndef TOKEN_H
 #define TOKEN_H
 
-#include <typeinfo>
+//#include <typeinfo>
 #include <cstring>
 #include <ostream>
-#include <vector>
-#include <string>
-#include <map>
+//#include <string>
 #include <iostream>
 
 #ifdef USE_CPP11
@@ -33,6 +31,7 @@
 	#define constexpr
 #endif
 
+#if 0
 template<class token_type>
 class token_t
 {
@@ -59,6 +58,7 @@ template<class T>
 inline std::ostream& operator<<(std::ostream& o, token_t<T>& t) {
 	return o << "(token_id:) " << (int)t.type;
 }
+#endif
 
 template<class T>
 class bool_base
@@ -545,73 +545,6 @@ public:
 public:
 	typedef bool result;
 };
-
-//! result type for parsing only, no phrasing
-struct parse
-{
-	//! result of child of type T
-	template<class T>
-	static parse mk_result(const T& ) { return parse(); }
-
-	template<class Itr1, class Itr2>
-	parse(const Itr1&, const Itr2& ) {}
-	parse() {}
-
-	void append(const parse& ) const {}
-	friend std::ostream& operator<<(std::ostream& o, parse& p);
-};
-
-inline std::ostream& operator<<(std::ostream& o, parse& ) { return o; }
-
-template<class Regex, class Result>
-void assert_match(const char* str, std::size_t digits) {
-	std::string s = str;
-	std::string::const_iterator itr0 = s.begin(), itr = s.begin();
-	
-	//typedef typename mk_action<debugger, Regex>::type ac_regex;
-	typedef Regex ac_regex;
-	Result res;
-	if(! ac_regex::match(itr, res) )
-	 std::cerr << "WARNING: did not match..." << std::endl;
-
-	std::cout << "Parsing result: " << res << std::endl;
-	
-	if((std::size_t)std::distance(itr0, itr) != digits)
-	{
-		std::cerr << "signs parsed: " << std::distance(itr0, itr) << " of " << digits << std::endl;
-		std::cerr << "at: " << (&*itr) << std::endl;
-		 throw "regex test error";
-	}
-}
-
-template<class Regex>
-constexpr bool c_assert_match(const char* str, std::size_t digits,
-	const char* itr0 = NULL,
-	const char* itr = NULL) {
-
-	typedef typename mk_action<debugger, Regex>::type ac_regex;
-	/*static_assert((
-		itr0 = str,
-		itr = str,
-		ac_regex::match(itr),
-		std::distance(itr0, itr) == digits),
-		"static match failure");*/
-	/*return itr0 = str,
-		itr = str,
-		ac_regex::match(itr),
-		std::distance(itr0, itr) == digits;*/
-		return -(std::size_t)(str - ac_regex::match(str)) == digits;
-}
-
-template<class Regex, class Result>
-void assert_match(const char* str) {
-	assert_match<Regex, Result>(str, strlen(str));
-}
-
-template<class Regex>
-constexpr bool c_assert_match(const char* str) {
-	return c_assert_match<Regex>(str, strlen(str));
-}
 
 #endif // TOKEN_H
 

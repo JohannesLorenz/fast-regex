@@ -11,11 +11,13 @@ HEADERS += \
 	c_grammar.h \
 	c_nodes.h \
 	parsers.h \
-	c_tokens.h
+	c_tokens.h \
+	result_types.h
 
 SOURCES += \
 	main.cpp \
-	parsers.cpp
+	parsers.cpp \
+	test.cpp
 
 OTHER_FILES += Makefile
 

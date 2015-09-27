@@ -17,14 +17,7 @@
 /* Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110, USA  */
 /*************************************************************************/
 
-/*token_t::token_t()
-{
-}*/
-/*
-std::ostream& token_t::dump(std::ostream& stream, const std::string& file) {
-	std::string substr;
-	std::copy(_begin, _end, std::back_inserter(substr));
-	return stream << substr << *this;
-	//return stream << file.substr(begin, end) << *this;
-}*/
+//#include "result_types.h"
+
+
 
