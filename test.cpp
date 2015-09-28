@@ -22,6 +22,7 @@
 
 #include "c_tokens.h"
 #include "result_types.h"
+#include "c_grammar.h"
 
 class result_test : public
 	regex< regex< raw<'a'>, raw<'c'> >, raw<'b'> > {};
@@ -145,6 +146,14 @@ void assert_match_ctoken(const char* input, const char* exp_res)
 	tv.clear();
 }
 
+class r2;
+
+class r1 : public
+	choices< raw<'a'>, regex<raw<'b'>, r2 > > {};
+
+class r2 : public
+	choices<r1, raw<'c'> > {};
+
 inline void test_regex()
 {
 	assert_match<hex_const, parse>("0xA1");
@@ -166,6 +175,9 @@ inline void test_regex()
 		"int x = 0;"
 		"int y = ++x % x ^ 1;"
 		"return 0; }\n", exp_res);
+
+	//assert_match<translation_unit, parse>(exp_res);
+	assert_match<r1, parse>("bba");
 
 	const char* str = "acb";
 	string_res res;
