@@ -237,7 +237,7 @@ class expression : public
 		regex<expression, raw<comma>, assignment_expression>
 	> {};
 
-class rawconstant_expression : public
+class constant_expression : public
 	conditional_expression {};
 
 class declaration : public

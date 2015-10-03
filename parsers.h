@@ -288,8 +288,12 @@ template<class C1, class C2, class C3, class C4, class C5, class C6, class C7, c
 };
 */
 
+template<class T> T* mk_ptr() {
+	typedef T* ptr_type;
+	return ptr_type();
+}
 
-
+template<class T> class ptr { typedef T* type; };
 
 template<class C1, class C2, class C3=Nothing, class C4=Nothing,
 	class C5=Nothing, class C6=Nothing, class C7=Nothing,
@@ -317,7 +321,8 @@ public:
 	template<class Itr, class T>
 	// C1<regex>::result: The result from a regex<C1> match
 	constexpr static bool match(Itr& i, T& result) {
-		return match_typed(i, result, T::mk_result(C1()));
+		
+		return match_typed(i, result, T::mk_result(mk_ptr<C1>()));
 		//typename T::template result<>
 		/*return C1::match(i, from_c1)
 			&& (result.append(from_c1), true)
@@ -393,7 +398,7 @@ struct choices : public parser,
 public:
 	template<class Itr, class R>
 	constexpr static bool match(Itr& i, R& result) {
-		return match(i, result, R::mk_result(C1()));
+		return match(i, result, R::mk_result(mk_ptr<C1>()));
 	}
 
 	static const bool dont_incr = true;
@@ -490,7 +495,7 @@ public:
 #ifndef USE_CPP11
 		std::cerr << "at: " << (*i) << std::endl;
 #endif
-		return match_typed(i, result, R::mk_result(C()));
+		return match_typed(i, result, R::mk_result(mk_ptr<C>()));
 	}
 	static const bool dont_incr = true;
 };
@@ -508,7 +513,7 @@ public:
 	typedef kleene_p<C> real_t;
 	template<class Itr, class R>
 	constexpr static bool match(Itr& i, R& result) {
-		return match(i, result, R::mk_result(C()));
+		return match(i, result, R::mk_result(mk_ptr<C>()));
 	}
 	static const bool dont_incr = true;
 };
@@ -526,7 +531,7 @@ public:
 	typedef maybe<C> real_t;
 	template<class Itr, class R>
 	constexpr static bool match(Itr& i, R& result) {
-		return match(i, result, R::mk_result(C()));
+		return match(i, result, R::mk_result(mk_ptr<C>()));
 	}
 	static const bool dont_incr = true;
 };

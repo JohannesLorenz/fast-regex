@@ -40,13 +40,13 @@ struct token_vector
 	static std::vector<char> v;
 
 	template<class T>
-	static token_vector mk_result(const T& ) { return token_vector(); }
+	static token_vector mk_result(const T* ) { return token_vector(); }
 
 	template<token_type Tok, char C1, char C2, char C3, char C4, char C5, char C6, char C7, char C8>
-	static token_type mk_result(const tok_str<Tok, C1, C2, C3, C4, C5, C6, C7, C8>& ) { return Tok; }
+	static token_type mk_result(const tok_str<Tok, C1, C2, C3, C4, C5, C6, C7, C8>* ) { return Tok; }
 
 	template<token_type Tok, class C1, class C2, class C3, class C4, class C5, class C6, class C7, class C8>
-	static token_type mk_result(const tok_regex<Tok, C1, C2, C3, C4, C5, C6, C7, C8>& ) { return Tok; }
+	static token_type mk_result(const tok_regex<Tok, C1, C2, C3, C4, C5, C6, C7, C8>* ) { return Tok; }
 
 	//! required for terminals
 	template<class Itr1, class Itr2>
@@ -156,14 +156,14 @@ class r2 : public
 
 inline void test_regex()
 {
-	assert_match<hex_const, parse>("0xA1");
+/*	assert_match<hex_const, parse>("0xA1");
 	assert_match<hex_const, parse>("0xA1ul");
 
 	assert_match<r_string_literal, parse>("L\"hello\""); // TODO: \" ?
 
 	assert_match<r_float_const_2, parse>(".52e+f");
 	assert_match<r_float_const_2, parse>(".52f");
-
+*/
 	const char exp_res[41] = {
 		k_int, whitespace, identifier, lpar, rpar, whitespace, lbrace, whitespace,
 		k_int, whitespace, identifier, whitespace, eq_sgn, whitespace, constant, semicolon,
@@ -176,13 +176,13 @@ inline void test_regex()
 		"int y = ++x % x ^ 1;"
 		"return 0; }\n", exp_res);
 
-	//assert_match<translation_unit, parse>(exp_res);
+	assert_match<translation_unit, parse>(exp_res);
 	assert_match<r1, parse>("bba");
-
+/*
 	const char* str = "acb";
 	string_res res;
 	result_test::match(str, res);
-	std::cerr << "my result: " << res.res << std::endl;
+	std::cerr << "my result: " << res.res << std::endl;*/
 }
 
 void print_err(const char* msg) {
